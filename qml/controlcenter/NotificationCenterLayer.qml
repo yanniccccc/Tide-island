@@ -7,6 +7,8 @@ Item {
     id: notificationCenter
 
     signal clearAllRequested()
+    signal notificationActivated(var notificationId)
+    signal notificationDismissed(var notificationId)
 
     property var notificationModel: null
     property string iconFontFamily: userConfig.iconFontFamily
@@ -14,9 +16,17 @@ Item {
     property string heroFontFamily: userConfig.heroFontFamily
 
     readonly property bool hasNotifications: notificationModel && notificationModel.count > 0
-    readonly property real contentHeight: 218
     readonly property real verticalPadding: 10
     readonly property real horizontalPadding: 22
+    readonly property real minimumContentHeight: 218
+    readonly property real maximumContentHeight: 340
+    readonly property real contentHeight: Math.max(
+        minimumContentHeight,
+        Math.min(
+            maximumContentHeight,
+            notificationHistory.preferredContentHeight + verticalPadding * 2
+        )
+    )
 
     NotificationHistory {
         id: notificationHistory
@@ -30,6 +40,12 @@ Item {
         iconFontFamily: notificationCenter.iconFontFamily
         textFontFamily: notificationCenter.textFontFamily
         heroFontFamily: notificationCenter.heroFontFamily
+        onNotificationActivated: function(notificationId) {
+            notificationCenter.notificationActivated(notificationId);
+        }
+        onNotificationDismissed: function(notificationId) {
+            notificationCenter.notificationDismissed(notificationId);
+        }
     }
 
     // Keep the action inside the first notification card so it does not create

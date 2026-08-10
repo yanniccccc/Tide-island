@@ -39,7 +39,6 @@ optdepends=(
     'python-pywal: for generating colors from the selected wallpaper'
     'networkmanager: for wifi control'
     'iwd: for wifi control'
-    'swaync: for the Focus do-not-disturb toggle'
     'tlp: for TLP power profile controls'
     'polkit: for applying TLP profiles via pkexec'
     'sudo: alternative for applying TLP profiles'

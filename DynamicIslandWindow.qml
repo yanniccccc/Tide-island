@@ -512,8 +512,34 @@ PanelWindow {
             prewarmWallpaperCache();
     }
 
-    function showNotification(appName, summary, body) {
-        islandContainer.showNotificationCapsule(appName, summary, body);
+    function showNotification(notification, showPopup) {
+        if (!notification)
+            return;
+        const actions = notification.actions || [];
+        let hasDefaultAction = false;
+        for (let index = 0; index < actions.length; index++) {
+            if (String(actions[index].identifier).toLowerCase() === "default") {
+                hasDefaultAction = true;
+                break;
+            }
+        }
+        islandContainer.showNotificationCapsule(
+            notification.appName,
+            notification.summary,
+            notification.body,
+            notification.id,
+            notification.appIcon,
+            showPopup,
+            hasDefaultAction
+        );
+    }
+
+    function removeNotification(notificationId) {
+        islandContainer.removeNotificationFromHistory(notificationId);
+    }
+
+    function clearNotifications() {
+        islandContainer.notificationHistoryModel.clear();
     }
 
     function showClockWindow() {
@@ -761,6 +787,8 @@ PanelWindow {
         property string notificationAppName: ""
         property string notificationSummary: ""
         property string notificationBody: ""
+        property var notificationActionId: -1
+        property bool notificationActionable: false
         property bool notificationExpanded: false
         property var bluetoothExpandedDevice: null
         property var notificationHistoryModel: ListModel {}
@@ -1136,6 +1164,8 @@ PanelWindow {
             notificationAppName = "";
             notificationSummary = "";
             notificationBody = "";
+            notificationActionId = -1;
+            notificationActionable = false;
             notificationExpanded = false;
             bluetoothExpandedDevice = null;
         }
@@ -1387,7 +1417,7 @@ PanelWindow {
             restartAutoHideTimer();
         }
 
-        function showNotificationCapsule(appName, summary, body) {
+        function showNotificationCapsule(appName, summary, body, notificationId, appIcon, showPopup, actionable) {
             const cleanedAppName = cleanNotificationText(appName);
             const cleanedSummary = cleanNotificationText(summary);
             const cleanedBody = cleanNotificationText(body);
@@ -1399,8 +1429,13 @@ PanelWindow {
             // notifications received while the merged control center is open
             // must still be recorded and appear in its live ListModel.
             if (notificationHistoryModel) {
+                if (notificationId !== undefined && notificationId !== null)
+                    removeNotificationFromHistory(notificationId);
                 notificationHistoryModel.insert(0, {
+                    notificationId: notificationId === undefined || notificationId === null ? -Date.now() : notificationId,
                     appName: cleanedAppName !== "" ? cleanedAppName : "Notification",
+                    appIcon: cleanNotificationText(appIcon),
+                    actionable: actionable === true,
                     summary: resolvedSummary,
                     body: cleanedSummary !== "" ? cleanedBody : "",
                     timestamp: new Date()
@@ -1409,16 +1444,28 @@ PanelWindow {
                     notificationHistoryModel.remove(50, notificationHistoryModel.count - 50);
             }
 
-            if (root.overviewVisible || islandState === "control_center" || islandState === "expanded") return;
+            if (showPopup === false
+                    || root.overviewVisible
+                    || islandState === "control_center"
+                    || islandState === "expanded") return;
 
             abortSideTransientMode();
             clearTransientCapsule();
             notificationAppName = cleanedAppName !== "" ? cleanedAppName : "Notification";
             notificationSummary = resolvedSummary;
             notificationBody = cleanedSummary !== "" ? cleanedBody : "";
+            notificationActionId = notificationId === undefined || notificationId === null ? -1 : notificationId;
+            notificationActionable = actionable === true;
             notificationExpanded = false;
             islandState = "notification";
             restartAutoHideTimer(notificationAutoHideInterval);
+        }
+
+        function removeNotificationFromHistory(notificationId) {
+            for (let index = notificationHistoryModel.count - 1; index >= 0; index--) {
+                if (String(notificationHistoryModel.get(index).notificationId) === String(notificationId))
+                    notificationHistoryModel.remove(index);
+            }
         }
 
         function toggleNotificationExpansionIfNeeded() {
@@ -2291,6 +2338,7 @@ PanelWindow {
                         summary: islandContainer.notificationSummary
                         body: islandContainer.notificationBody
                         expanded: islandContainer.notificationExpanded
+                        actionable: islandContainer.notificationActionable
                         toggleButton: userConfig.mouseButton(userConfig.dynamicIslandPrimaryButton)
                         iconText: root.notificationStatusIcon
                         iconFontFamily: root.iconFontFamily
@@ -2300,6 +2348,13 @@ PanelWindow {
                         onExpansionToggleRequested: {
                             islandContainer.suppressCapsuleClick(true);
                             islandContainer.toggleNotificationExpansionIfNeeded();
+                        }
+                        onDefaultActionRequested: {
+                            islandContainer.suppressCapsuleClick(true);
+                            const notificationId = islandContainer.notificationActionId;
+                            if (root.shellRootController && root.shellRootController.invokeNotification)
+                                root.shellRootController.invokeNotification(notificationId);
+                            islandContainer.smartRestoreState();
                         }
                     }
                 }
@@ -2328,6 +2383,9 @@ PanelWindow {
                         currentTrack: islandContainer.currentTrack
                         currentArtist: islandContainer.currentArtist
                         notificationModel: islandContainer.notificationHistoryModel
+                        focusEnabled: root.shellRootController && root.shellRootController.focusEnabled !== undefined
+                            ? root.shellRootController.focusEnabled
+                            : false
                         nightLightEnabled: root.shellRootController && root.shellRootController.nightLightEnabled !== undefined
                             ? root.shellRootController.nightLightEnabled
                             : false
@@ -2344,7 +2402,20 @@ PanelWindow {
                             islandContainer.showNotificationCapsule(appName, summary, body);
                         }
                         onClearNotificationsRequested: {
-                            islandContainer.notificationHistoryModel.clear();
+                            if (root.shellRootController && root.shellRootController.clearNotifications)
+                                root.shellRootController.clearNotifications();
+                            else
+                                islandContainer.notificationHistoryModel.clear();
+                        }
+                        onNotificationActivated: function(notificationId) {
+                            if (root.shellRootController && root.shellRootController.invokeNotification)
+                                root.shellRootController.invokeNotification(notificationId);
+                        }
+                        onNotificationDismissed: function(notificationId) {
+                            if (root.shellRootController && root.shellRootController.dismissNotification)
+                                root.shellRootController.dismissNotification(notificationId);
+                            else
+                                islandContainer.removeNotificationFromHistory(notificationId);
                         }
                         onConnectivityPanelRequested: function(kind, open) {
                             root.setConnectivityDetailVisible(kind, open);

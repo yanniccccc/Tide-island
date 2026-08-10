@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Notifications
 import IslandBackend
 
 Scope {
@@ -11,6 +12,7 @@ Scope {
     property bool nightLightEnabled: false
     property bool shuttingDown: false
     property bool islandAutoHideRuntimeEnabled: true
+    property var notificationObjects: ({})
 
     readonly property var userConfig: UserConfig
 
@@ -23,13 +25,81 @@ Scope {
         }
     }
 
-    function showNotificationAll(appName, summary, body) {
-        if (focusEnabled)
-            return;
-
+    function showNotificationAll(notification) {
         shellRoot.forEachWindow((window) => {
             if (window && window.showNotification)
-                window.showNotification(appName, summary, body);
+                window.showNotification(notification, !focusEnabled);
+        });
+    }
+
+    function trackNotification(notification) {
+        if (!notification)
+            return;
+
+        notification.tracked = true;
+        const nextObjects = Object.assign({}, notificationObjects);
+        nextObjects[String(notification.id)] = notification;
+        notificationObjects = nextObjects;
+
+        notification.closed.connect(function() {
+            shellRoot.forgetNotification(notification.id, notification);
+        });
+    }
+
+    function forgetNotification(notificationId, expectedNotification) {
+        const key = String(notificationId);
+        if (expectedNotification && notificationObjects[key] !== expectedNotification)
+            return;
+
+        const nextObjects = Object.assign({}, notificationObjects);
+        delete nextObjects[key];
+        notificationObjects = nextObjects;
+
+        shellRoot.forEachWindow((window) => {
+            if (window && window.removeNotification)
+                window.removeNotification(notificationId);
+        });
+    }
+
+    function invokeNotification(notificationId) {
+        const notification = notificationObjects[String(notificationId)];
+        if (!notification)
+            return;
+
+        const actions = notification.actions || [];
+        let action = null;
+        for (let index = 0; index < actions.length; index++) {
+            if (String(actions[index].identifier).toLowerCase() === "default") {
+                action = actions[index];
+                break;
+            }
+        }
+        if (!action)
+            return;
+
+        action.invoke();
+        notification.dismiss();
+        forgetNotification(notificationId);
+    }
+
+    function dismissNotification(notificationId) {
+        const notification = notificationObjects[String(notificationId)];
+        if (notification)
+            notification.dismiss();
+        forgetNotification(notificationId);
+    }
+
+    function clearNotifications() {
+        const ids = Object.keys(notificationObjects);
+        for (let index = 0; index < ids.length; index++) {
+            const notification = notificationObjects[ids[index]];
+            if (notification)
+                notification.dismiss();
+        }
+        notificationObjects = ({});
+        shellRoot.forEachWindow((window) => {
+            if (window && window.clearNotifications)
+                window.clearNotifications();
         });
     }
 
@@ -252,11 +322,21 @@ Scope {
         }
     }
 
-    Connections {
-        target: SystemServices
+    NotificationServer {
+        id: notificationServer
 
-        function onNotificationReceived(appName, summary, body) {
-            shellRoot.showNotificationAll(appName, summary, body);
+        keepOnReload: true
+        persistenceSupported: true
+        bodySupported: true
+        bodyMarkupSupported: false
+        actionsSupported: true
+        actionIconsSupported: true
+        imageSupported: true
+        inlineReplySupported: false
+
+        onNotification: function(notification) {
+            shellRoot.trackNotification(notification);
+            shellRoot.showNotificationAll(notification);
         }
     }
 

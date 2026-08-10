@@ -12,6 +12,7 @@ Item {
     property string body: ""
     property string iconText: ""
     property bool expanded: false
+    property bool actionable: false
     property int toggleButton: Qt.LeftButton
     property var configSource: null
     readonly property var activeConfig: configSource || userConfig
@@ -20,6 +21,7 @@ Item {
     property string heroFontFamily: activeConfig.heroFontFamily
 
     signal expansionToggleRequested()
+    signal defaultActionRequested()
 
     readonly property string contentText: {
         if (summary !== "" && body !== "" && body !== summary) return summary + "  " + body;
@@ -178,8 +180,13 @@ Item {
     }
 
     TapHandler {
-        enabled: root.hasOverflowContent
+        enabled: root.actionable || root.hasOverflowContent
         acceptedButtons: root.toggleButton
-        onTapped: root.expansionToggleRequested()
+        onTapped: {
+            if (root.actionable)
+                root.defaultActionRequested();
+            else
+                root.expansionToggleRequested();
+        }
     }
 }

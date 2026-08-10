@@ -12,6 +12,8 @@ Item {
     signal nightLightModeChanged(bool enabled)
     signal requestNotification(string appName, string summary, string body)
     signal clearNotificationsRequested()
+    signal notificationActivated(var notificationId)
+    signal notificationDismissed(var notificationId)
 
     readonly property var userConfig: UserConfig
 
@@ -130,7 +132,7 @@ Item {
         + batteryDrawerProgress * (batteryDrawerContentGap + batteryModeCardHeight)
     readonly property real controlCenterMaximumExtraHeight: 12 + batteryDrawerHandleHeight
         + batteryDrawerContentGap + batteryModeCardHeight
-    readonly property real controlCenterBaseHeight: 370
+    readonly property real controlCenterBaseHeight: 152 + mergedNotificationCenter.height
     readonly property bool bluetoothAvailable: !!bluetoothAdapter
     readonly property var bluetoothAdapter: Bluetooth.defaultAdapter
     readonly property var bluetoothDeviceValues: bluetoothAdapter ? bluetoothAdapter.devices.values : []
@@ -404,11 +406,13 @@ Item {
         if (focusBusy)
             return;
 
-        focusBusy = true;
-        if (focusEnabled)
-            focusDisableProcess.running = true;
-        else
-            focusEnableProcess.running = true;
+        focusEnabled = !focusEnabled;
+        focusModeChanged(focusEnabled);
+        requestNotification(
+            "Focus",
+            focusEnabled ? "Focus enabled" : "Focus disabled",
+            focusEnabled ? "Notification popups paused" : ""
+        );
     }
 
     function clearWifiPrompt() {
@@ -889,7 +893,6 @@ Item {
         SystemServices.requestVolume();
         refreshBatteryModeState();
         refreshLanState();
-        focusStateProcess.running = true;
     }
 
     function refreshLanState() {
@@ -972,20 +975,6 @@ Item {
     }
 
     Process {
-        id: focusStateProcess
-        command: ["swaync-client", "--get-dnd"]
-        running: false
-
-        stdout: SplitParser {
-            onRead: function(line) {
-                const enabled = line.trim().toLowerCase() === "true";
-                controlCenter.focusEnabled = enabled;
-                controlCenter.focusModeChanged(enabled);
-            }
-        }
-    }
-
-    Process {
         id: nightLightEnableProcess
         command: [
             "sh",
@@ -1058,34 +1047,6 @@ Item {
                         : "Install gammastep to use Night Light.");
             else
                 controlCenter.requestNotification("Night Light", "Night Light disabled", "");
-        }
-    }
-
-    Process {
-        id: focusEnableProcess
-        command: ["swaync-client", "-dn"]
-        running: false
-
-        onExited: function(exitCode) {
-            controlCenter.focusBusy = false;
-            controlCenter.focusEnabled = exitCode === 0;
-            controlCenter.focusModeChanged(controlCenter.focusEnabled);
-            if (exitCode === 0)
-                controlCenter.requestNotification("Focus", "Focus enabled", "Notifications paused");
-        }
-    }
-
-    Process {
-        id: focusDisableProcess
-        command: ["swaync-client", "-df"]
-        running: false
-
-        onExited: function(exitCode) {
-            controlCenter.focusBusy = false;
-            controlCenter.focusEnabled = false;
-            controlCenter.focusModeChanged(false);
-            if (exitCode === 0)
-                controlCenter.requestNotification("Focus", "Focus disabled", "");
         }
     }
 
@@ -2181,6 +2142,12 @@ Item {
             textFontFamily: controlCenter.textFontFamily
             heroFontFamily: controlCenter.heroFontFamily
             onClearAllRequested: controlCenter.clearNotificationsRequested()
+            onNotificationActivated: function(notificationId) {
+                controlCenter.notificationActivated(notificationId);
+            }
+            onNotificationDismissed: function(notificationId) {
+                controlCenter.notificationDismissed(notificationId);
+            }
         }
     }
 
