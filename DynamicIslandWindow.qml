@@ -248,7 +248,9 @@ PanelWindow {
         ? controlCenterLoader.item.controlCenterMaximumExtraHeight
         : 120
     readonly property real controlCenterWindowHeight: islandContainer.controlCenterLayerVisible
-        ? userConfig.islandTopMargin + 320 + root.controlCenterMaximumExtraHeight + 12
+        ? userConfig.islandTopMargin
+            + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterBaseHeight : 370)
+            + root.controlCenterMaximumExtraHeight + 12
         : 0
 
     readonly property real notificationCenterWindowHeight: islandContainer.notificationCenterLayerVisible
@@ -579,10 +581,10 @@ PanelWindow {
     }
 
     function toggleNotificationCenterWindow() {
-        if (islandContainer.islandState === "notification_center")
+        if (islandContainer.islandState === "control_center")
             islandContainer.smartRestoreState();
         else
-            islandContainer.showNotificationCenter();
+            islandContainer.showControlCenter();
     }
 
     function toggleWallpaperPickerWindow() {
@@ -1009,16 +1011,16 @@ PanelWindow {
                     smartRestoreState();
                 return;
             case "toggleNotificationCenter":
-                if (islandState === "notification_center")
+                if (islandState === "control_center")
                     smartRestoreState();
                 else
-                    showNotificationCenter();
+                    showControlCenter();
                 return;
             case "openNotificationCenter":
-                showNotificationCenter();
+                showControlCenter();
                 return;
             case "closeNotificationCenter":
-                if (islandState === "notification_center")
+                if (islandState === "control_center")
                     smartRestoreState();
                 return;
             case "toggleControlCenter":
@@ -1391,14 +1393,28 @@ PanelWindow {
         }
 
         function showNotificationCapsule(appName, summary, body) {
-            if (root.overviewVisible || islandState === "control_center" || islandState === "expanded") return;
-
             const cleanedAppName = cleanNotificationText(appName);
             const cleanedSummary = cleanNotificationText(summary);
             const cleanedBody = cleanNotificationText(body);
             const resolvedSummary = cleanedSummary !== ""
                 ? cleanedSummary
                 : (cleanedBody !== "" ? cleanedBody : "New notification");
+
+            // History is independent from the transient popup. In particular,
+            // notifications received while the merged control center is open
+            // must still be recorded and appear in its live ListModel.
+            if (notificationHistoryModel) {
+                notificationHistoryModel.insert(0, {
+                    appName: cleanedAppName !== "" ? cleanedAppName : "Notification",
+                    summary: resolvedSummary,
+                    body: cleanedSummary !== "" ? cleanedBody : "",
+                    timestamp: new Date()
+                });
+                if (notificationHistoryModel.count > 50)
+                    notificationHistoryModel.remove(50, notificationHistoryModel.count - 50);
+            }
+
+            if (root.overviewVisible || islandState === "control_center" || islandState === "expanded") return;
 
             abortSideTransientMode();
             clearTransientCapsule();
@@ -1408,18 +1424,6 @@ PanelWindow {
             notificationExpanded = false;
             islandState = "notification";
             restartAutoHideTimer(notificationAutoHideInterval);
-            // Store in notification history
-                if (notificationHistoryModel) {
-                    notificationHistoryModel.insert(0, {
-                        appName: cleanedAppName !== "" ? cleanedAppName : "Notification",
-                        summary: resolvedSummary,
-                        body: cleanedSummary !== "" ? cleanedBody : "",
-                        timestamp: new Date()
-                    });
-                    if (notificationHistoryModel.count > 50)
-                        notificationHistoryModel.remove(50, notificationHistoryModel.count - 50);
-                }
-
         }
 
         function toggleNotificationExpansionIfNeeded() {
@@ -1521,12 +1525,7 @@ PanelWindow {
         }
 
         function showNotificationCenter() {
-            cancelSideSwipeSettle();
-            abortSideTransientMode();
-            clearTransientCapsule();
-            islandState = "notification_center";
-            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
-            stopAutoHideTimer();
+            showControlCenter();
         }
 
 
@@ -1739,7 +1738,8 @@ PanelWindow {
 
                 switch (islandContainer.islandState) {
                 case "control_center":
-                    return 320 + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterExtraHeight : 32);
+                    return (controlCenterLoader.item ? controlCenterLoader.item.controlCenterBaseHeight : 370)
+                        + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterExtraHeight : 32);
                 case "notification_center":
                     return notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 200;
                 case "wallpaper_picker":
@@ -2344,6 +2344,7 @@ PanelWindow {
                         currentWorkspace: islandContainer.currentWs
                         currentTrack: islandContainer.currentTrack
                         currentArtist: islandContainer.currentArtist
+                        notificationModel: islandContainer.notificationHistoryModel
                         nightLightEnabled: root.shellRootController && root.shellRootController.nightLightEnabled !== undefined
                             ? root.shellRootController.nightLightEnabled
                             : false
@@ -2358,6 +2359,9 @@ PanelWindow {
                         }
                         onRequestNotification: function(appName, summary, body) {
                             islandContainer.showNotificationCapsule(appName, summary, body);
+                        }
+                        onClearNotificationsRequested: {
+                            islandContainer.notificationHistoryModel.clear();
                         }
                         onConnectivityPanelRequested: function(kind, open) {
                             root.setConnectivityDetailVisible(kind, open);

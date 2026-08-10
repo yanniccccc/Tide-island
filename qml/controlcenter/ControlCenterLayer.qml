@@ -11,6 +11,7 @@ Item {
     signal focusModeChanged(bool enabled)
     signal nightLightModeChanged(bool enabled)
     signal requestNotification(string appName, string summary, string body)
+    signal clearNotificationsRequested()
 
     readonly property var userConfig: UserConfig
 
@@ -39,6 +40,9 @@ Item {
     property int currentWorkspace: 1
     property string currentTrack: ""
     property string currentArtist: ""
+    property var notificationModel: null
+    property bool lanConnected: false
+    property string lanInterface: ""
 
     property real localVolume: 0.5
     property real localBrightness: 0.5
@@ -111,6 +115,8 @@ Item {
     readonly property string wifiGlyph: ""
     readonly property string bluetoothGlyph: ""
     readonly property string chargingIconGlyph: "\uf0e7"
+    readonly property string ethernetGlyph: "\u{F0200}"
+    readonly property string ethernetOffGlyph: "\u{F0202}"
     readonly property string brightnessIconGlyph: "\u{F00DF}"
     readonly property string volumeIconGlyph: "\u{F057E}"
     readonly property string nightLightGlyph: "\uf186"
@@ -124,6 +130,7 @@ Item {
         + batteryDrawerProgress * (batteryDrawerContentGap + batteryModeCardHeight)
     readonly property real controlCenterMaximumExtraHeight: 12 + batteryDrawerHandleHeight
         + batteryDrawerContentGap + batteryModeCardHeight
+    readonly property real controlCenterBaseHeight: 370
     readonly property bool bluetoothAvailable: !!bluetoothAdapter
     readonly property var bluetoothAdapter: Bluetooth.defaultAdapter
     readonly property var bluetoothDeviceValues: bluetoothAdapter ? bluetoothAdapter.devices.values : []
@@ -861,6 +868,7 @@ Item {
             sliderIntroTimer.interval = sliderIntroDelay;
             sliderIntroTimer.restart();
             refreshBatteryModeState();
+            refreshLanState();
             requestWifiStateRefresh();
             if (wifiPanelOpen && wifiSupported && wifiEnabled)
                 requestWifiListRefresh(true);
@@ -880,7 +888,13 @@ Item {
         SystemServices.requestBrightness();
         SystemServices.requestVolume();
         refreshBatteryModeState();
+        refreshLanState();
         focusStateProcess.running = true;
+    }
+
+    function refreshLanState() {
+        if (!lanStateProcess.running)
+            lanStateProcess.running = true;
     }
 
     Behavior on opacity {
@@ -916,6 +930,45 @@ Item {
             duration: 240
             easing.type: Easing.OutCubic
         }
+    }
+
+    Process {
+        id: lanStateProcess
+        command: [
+            "sh",
+            "-c",
+            "for iface in /sys/class/net/*; do\n"
+                + "  [ -e \"$iface\" ] || continue\n"
+                + "  [ \"${iface##*/}\" != lo ] || continue\n"
+                + "  [ \"$(cat \"$iface/type\" 2>/dev/null)\" = 1 ] || continue\n"
+                + "  [ ! -d \"$iface/wireless\" ] || continue\n"
+                + "  if [ \"$(cat \"$iface/carrier\" 2>/dev/null)\" = 1 ]"
+                + " && [ \"$(cat \"$iface/operstate\" 2>/dev/null)\" = up ]; then\n"
+                + "    printf 'connected:%s\\n' \"${iface##*/}\"\n"
+                + "    exit 0\n"
+                + "  fi\n"
+                + "done\n"
+                + "printf 'disconnected:\\n'"
+        ]
+        running: false
+
+        stdout: SplitParser {
+            onRead: function(line) {
+                const result = String(line || "").trim();
+                controlCenter.lanConnected = result.indexOf("connected:") === 0;
+                controlCenter.lanInterface = controlCenter.lanConnected
+                    ? result.slice("connected:".length)
+                    : "";
+            }
+        }
+    }
+
+    Timer {
+        id: lanStateTimer
+        interval: 3000
+        repeat: true
+        running: controlCenter.showCondition
+        onTriggered: controlCenter.refreshLanState()
     }
 
     Process {
@@ -1232,73 +1285,30 @@ Item {
                 spacing: 5
 
                 Text {
-                    text: controlCenter.chargingIconGlyph
-                    color: StyleTokens.white
-                    font.pixelSize: 13
-                    font.family: iconFontFamily
-                    visible: isCharging
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-
-                Text {
-                    text: batteryCapacity + "%"
-                    color: StyleTokens.white
-                    font.pixelSize: 13
-                    font.family: textFontFamily
+                    text: controlCenter.lanConnected ? "LAN" : "Offline"
+                    color: controlCenter.lanConnected ? StyleTokens.textPrimaryBright : StyleTokens.textMuted
+                    font.pixelSize: 12
+                    font.family: controlCenter.textFontFamily
                     font.weight: Font.DemiBold
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item {
-                    width: 28
-                    height: 14
+                Text {
+                    text: controlCenter.lanConnected
+                        ? controlCenter.ethernetGlyph
+                        : controlCenter.ethernetOffGlyph
+                    color: controlCenter.lanConnected ? StyleTokens.success : StyleTokens.textDisabled
+                    font.pixelSize: 18
+                    font.family: controlCenter.iconFontFamily
                     anchors.verticalCenter: parent.verticalCenter
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.rightMargin: 2
-                        radius: 4
-                        color: StyleTokens.transparent
-                        border.color: StyleTokens.textSecondary
-                        border.width: 1
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.top: parent.top
-                            anchors.bottom: parent.bottom
-                            anchors.margins: 2
-                            radius: 2
-                            width: (parent.width - 4) * (batteryCapacity / 100.0)
-                            color: {
-                                if (batteryCapacity <= 10) return StyleTokens.danger;
-                                if (batteryCapacity <= 20) return StyleTokens.warning;
-                                return StyleTokens.success;
-                            }
-
-                            Behavior on width {
-                                NumberAnimation {
-                                    duration: 300
-                                    easing.type: Easing.OutCubic
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: 2
-                        height: 6
-                        radius: 1
-                        color: StyleTokens.textSecondary
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
                 }
             }
         }
 
         Item {
             width: parent.width
-            height: 80
+            height: 0
+            visible: false
 
             Row {
                 id: connectivityCardsRow
@@ -2096,7 +2106,8 @@ Item {
         ControlSliderCard {
             id: brightnessCard
             width: parent.width
-            height: 76
+            height: 0
+            visible: false
             title: "Display"
             iconText: controlCenter.brightnessIconGlyph
             iconFontFamily: controlCenter.iconFontFamily
@@ -2159,6 +2170,17 @@ Item {
                 controlCenter.flushVolume(true);
             }
             onCancelRequested: SystemServices.requestVolume()
+        }
+
+        NotificationCenterLayer {
+            id: mergedNotificationCenter
+            width: parent.width
+            height: contentHeight
+            notificationModel: controlCenter.notificationModel
+            iconFontFamily: controlCenter.iconFontFamily
+            textFontFamily: controlCenter.textFontFamily
+            heroFontFamily: controlCenter.heroFontFamily
+            onClearAllRequested: controlCenter.clearNotificationsRequested()
         }
     }
 
