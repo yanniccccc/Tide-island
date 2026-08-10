@@ -39,6 +39,8 @@ PanelWindow {
             ? CompositorBackend.isOutputFocused(screenOutputName)
             : (hyprlandIntegration ? hyprlandIntegration.monitorFocused : false);
     }
+    readonly property bool trayDockEnabled: shellRootController !== null
+    readonly property bool systemTrayOpen: islandContainer.islandState === "system_tray"
     readonly property bool connectivityPromptActive: controlCenterLoader.item
         ? controlCenterLoader.item.hasConnectivityPrompt
         : false
@@ -94,6 +96,18 @@ PanelWindow {
             width: Math.ceil(mainCapsule.width)
             height: Math.ceil(mainCapsule.height)
         }
+
+        Region {
+            intersection: Intersection.Combine
+            x: islandContainer.systemTrayDockItem
+                ? Math.floor(islandContainer.systemTrayDockItem.x) : 0
+            y: islandContainer.systemTrayDockItem
+                ? Math.floor(islandContainer.systemTrayDockItem.y) : 0
+            width: root.trayDockEnabled && islandContainer.systemTrayDockItem
+                ? Math.ceil(islandContainer.systemTrayDockItem.width) : 0
+            height: root.trayDockEnabled && islandContainer.systemTrayDockItem
+                ? Math.ceil(islandContainer.systemTrayDockItem.height) : 0
+        }
         
         // Add existing detail shells
         Region {
@@ -125,7 +139,11 @@ PanelWindow {
         root.capsuleWindowHeight,
         root.connectivityDetailWindowHeight,
         root.overviewWindowHeight,
-        Math.ceil(root.controlCenterWindowHeight)
+        Math.ceil(root.controlCenterWindowHeight),
+        root.trayDockEnabled && islandContainer.systemTrayDockItem
+            ? Math.ceil(islandContainer.systemTrayDockItem.y
+                + islandContainer.systemTrayDockItem.height + 4)
+            : 0
     )
     // Grow the layer surface immediately, but keep the old extent while the
     // capsule finishes its collapse animation. A later expansion interrupts
@@ -144,7 +162,9 @@ PanelWindow {
     }
 
     onRequestedWindowHeightChanged: root.reconcileWindowHeight()
-    Component.onCompleted: root.retainedWindowHeight = root.requestedWindowHeight
+    Component.onCompleted: {
+        root.retainedWindowHeight = root.requestedWindowHeight;
+    }
 
     exclusiveZone: Math.ceil(root.baseExclusiveZone * root.exclusiveZoneProgress)
     WlrLayershell.layer: islandContainer.wallpaperPickerLayerVisible
@@ -211,6 +231,7 @@ PanelWindow {
     readonly property bool exclusiveZoneTargetActive: (!autoHideEnabled && autoHideTargetVisible)
         || (autoHideRevealSource === "edge" && autoHideTargetVisible)
         || islandContainer.notificationLayerVisible
+        || root.trayDockEnabled
     property real exclusiveZoneProgress: exclusiveZoneTargetActive ? 1 : 0
     readonly property real autoHideRevealWidth: Math.min(root.width, Math.max(userConfig.islandWidth + 120, 240))
     readonly property real autoHideRevealHeight: autoHideEnabled ? 10 : 0
@@ -623,6 +644,14 @@ PanelWindow {
             islandContainer.showApplicationLauncher();
     }
 
+    function toggleSystemTrayWindow() {
+        if (islandContainer.islandState === "system_tray")
+            islandContainer.smartRestoreState();
+        else
+            islandContainer.showSystemTray();
+        showAutoHiddenIsland("manual");
+    }
+
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (overviewVisible)
@@ -829,6 +858,7 @@ PanelWindow {
             || islandState === "notification"
             || islandState === "wallpaper_picker"
             || islandState === "application_launcher"
+            || islandState === "system_tray"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
@@ -871,6 +901,8 @@ PanelWindow {
         readonly property bool controlCenterLayerVisible: !root.overviewVisible && islandState === "control_center"
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
+        readonly property bool systemTrayLayerVisible: !root.overviewVisible && islandState === "system_tray"
+        readonly property var systemTrayDockItem: systemTrayDock
         readonly property var activePlayer: mediaController.activePlayer
         readonly property string lyricsDisplayText: mediaController.displayText
         readonly property string currentTrack: mediaController.currentTrack
@@ -1447,7 +1479,8 @@ PanelWindow {
             if (showPopup === false
                     || root.overviewVisible
                     || islandState === "control_center"
-                    || islandState === "expanded") return;
+                    || islandState === "expanded"
+                    || islandState === "system_tray") return;
 
             abortSideTransientMode();
             clearTransientCapsule();
@@ -1584,6 +1617,16 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
+        function showSystemTray() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "system_tray";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            expandedByPlayerAutoOpen = false;
+            stopAutoHideTimer();
+        }
+
         function showCustomCapsule() {
             if (!hasCustomLeftItems) {
                 showTimeCapsule();
@@ -1707,7 +1750,8 @@ PanelWindow {
             if (currentTrack !== ""
                     && islandState !== "control_center"
                     && islandState !== "notification"
-                    && islandState !== "bluetooth_expanded") {
+                    && islandState !== "bluetooth_expanded"
+                    && islandState !== "system_tray") {
                 if (root.autoHideSuppressesTransientReveal) return;
                 if (islandState === "expanded" && !expandedByPlayerAutoOpen) return;
                 showExpandedPlayer(true);
@@ -1715,6 +1759,22 @@ PanelWindow {
         }
 
         // --- UI 渲染：灵动岛主干 ---
+        SystemTrayDock {
+            id: systemTrayDock
+            z: 30
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: Math.max(3, userConfig.islandTopMargin)
+            anchors.rightMargin: 12
+            width: implicitWidth
+            height: implicitHeight
+            showCondition: root.trayDockEnabled
+            shellController: root.shellRootController
+            parentWindow: root
+            textFontFamily: root.textFontFamily
+            iconFontFamily: root.iconFontFamily
+        }
+
         Rectangle {
             id: mainCapsule
             z: 5
@@ -1751,6 +1811,8 @@ PanelWindow {
                     return islandContainer.lyricsCapsuleWidth;
                 case "control_center":
                     return 420;
+                case "system_tray":
+                    return 420;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 1100;
@@ -1774,6 +1836,10 @@ PanelWindow {
                 case "control_center":
                     return (controlCenterLoader.item ? controlCenterLoader.item.controlCenterBaseHeight : 370)
                         + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterExtraHeight : 32);
+                case "system_tray":
+                    return systemTrayLayerLoader.item
+                        ? systemTrayLayerLoader.item.preferredHeight
+                        : 146;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 260;
@@ -1794,6 +1860,8 @@ PanelWindow {
                 switch (islandContainer.islandState) {
                 case "control_center":
                     return 34;
+                case "system_tray":
+                    return 30;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 34;
@@ -2440,6 +2508,25 @@ PanelWindow {
                         showCondition: islandContainer.wallpaperPickerLayerVisible
                         onWallpaperApplied: filePath => root.wallpaperPickerActiveWallpaper = filePath
                         onWallpaperApplySucceeded: filePath => root.handleWallpaperApplySucceeded(filePath)
+                        onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            Loader {
+                id: systemTrayLayerLoader
+                anchors.fill: parent
+                active: islandContainer.systemTrayLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    SystemTrayLayer {
+                        shellController: root.shellRootController
+                        parentWindow: root
+                        textFontFamily: root.textFontFamily
+                        iconFontFamily: root.iconFontFamily
+                        showCondition: islandContainer.systemTrayLayerVisible
                         onCloseRequested: islandContainer.smartRestoreState()
                     }
                 }

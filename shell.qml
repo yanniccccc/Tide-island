@@ -1,3 +1,6 @@
+//@ pragma UseQApplication
+
+import QtCore
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -13,8 +16,80 @@ Scope {
     property bool shuttingDown: false
     property bool islandAutoHideRuntimeEnabled: true
     property var notificationObjects: ({})
+    property var pinnedTrayIds: []
 
     readonly property var userConfig: UserConfig
+
+    function trayItemKey(item) {
+        if (!item)
+            return "";
+        const itemId = String(item.id || "").trim();
+        return itemId !== "" ? itemId : String(item.title || "").trim();
+    }
+
+    function isTrayItemPinned(item) {
+        const itemKey = trayItemKey(item);
+        return itemKey !== "" && pinnedTrayIds.indexOf(itemKey) >= 0;
+    }
+
+    function toggleTrayItemPinned(item) {
+        const itemKey = trayItemKey(item);
+        if (itemKey === "")
+            return;
+
+        const nextIds = pinnedTrayIds.slice();
+        const currentIndex = nextIds.indexOf(itemKey);
+        if (currentIndex >= 0)
+            nextIds.splice(currentIndex, 1);
+        else
+            nextIds.push(itemKey);
+
+        pinnedTrayIds = nextIds;
+        trayPinStore.pinnedIds = nextIds;
+        trayPinsFile.writeAdapter();
+    }
+
+    function loadTrayPinsFromDisk() {
+        let storedIds = [];
+        try {
+            const contents = trayPinsFile.text();
+            if (contents.trim() !== "") {
+                const parsed = JSON.parse(contents);
+                storedIds = parsed && Array.isArray(parsed.pinnedIds) ? parsed.pinnedIds : [];
+            }
+        } catch (error) {
+            storedIds = [];
+        }
+
+        const cleanIds = [];
+        const seen = ({});
+        for (let index = 0; index < storedIds.length; ++index) {
+            const itemId = String(storedIds[index] || "").trim();
+            if (itemId === "" || seen[itemId])
+                continue;
+            seen[itemId] = true;
+            cleanIds.push(itemId);
+        }
+        pinnedTrayIds = cleanIds;
+    }
+
+    FileView {
+        id: trayPinsFile
+        path: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation)
+            + "/tide-island/system-tray.json"
+        preload: true
+        watchChanges: true
+        atomicWrites: true
+        printErrors: false
+
+        JsonAdapter {
+            id: trayPinStore
+            property var pinnedIds: []
+        }
+
+        onLoaded: shellRoot.loadTrayPinsFromDisk()
+        onFileChanged: shellRoot.loadTrayPinsFromDisk()
+    }
 
     function forEachWindow(callback) {
         const windows = panelVariants.instances ? panelVariants.instances : [];
@@ -319,6 +394,10 @@ Scope {
 
         function toggleApplicationLauncher() {
             shellRoot.forFocusedWindow((window) => window.toggleApplicationLauncherWindow());
+        }
+
+        function toggleSystemTray() {
+            shellRoot.forFocusedWindow((window) => window.toggleSystemTrayWindow());
         }
     }
 
