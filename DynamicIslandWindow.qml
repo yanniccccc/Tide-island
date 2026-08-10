@@ -122,7 +122,6 @@ PanelWindow {
         ? Math.ceil(userConfig.islandTopMargin + root.overviewCapsuleHeight + 8)
         : 0
     readonly property real requestedWindowHeight: Math.max(
-        root.notificationCenterWindowHeight,
         root.capsuleWindowHeight,
         root.connectivityDetailWindowHeight,
         root.overviewWindowHeight,
@@ -253,9 +252,6 @@ PanelWindow {
             + root.controlCenterMaximumExtraHeight + 12
         : 0
 
-    readonly property real notificationCenterWindowHeight: islandContainer.notificationCenterLayerVisible
-        ? userConfig.islandTopMargin + (notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 400) + 6
-        : 0
     readonly property real connectivityDetailGap: 16
     readonly property int connectivityDetailAnimationDuration: 360
     readonly property string overviewWallpaperSource: overviewWallpaperCache.effectiveSource
@@ -845,7 +841,6 @@ PanelWindow {
         readonly property bool bluetoothExpandedLayerVisible: !root.overviewVisible && islandState === "bluetooth_expanded"
         readonly property bool notificationLayerVisible: !root.overviewVisible && islandState === "notification"
         readonly property bool controlCenterLayerVisible: !root.overviewVisible && islandState === "control_center"
-        readonly property bool notificationCenterLayerVisible: !root.overviewVisible && islandState === "notification_center"
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
         readonly property var activePlayer: mediaController.activePlayer
@@ -1524,11 +1519,6 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
-        function showNotificationCenter() {
-            showControlCenter();
-        }
-
-
         function showWallpaperPicker() {
             cancelSideSwipeSettle();
             abortSideTransientMode();
@@ -1682,11 +1672,10 @@ PanelWindow {
             id: mainCapsule
             z: 5
             property int morphDuration: 400
-            readonly property bool notificationHistorySurface: islandContainer.islandState === "notification_center"
-            property real outlineWidth: root.overviewContentVisible || notificationHistorySurface ? 1 : 0
+            property real outlineWidth: root.overviewContentVisible ? 1 : 0
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
-                : (notificationHistorySurface ? "#1affffff" : StyleTokens.clearBlack)
+                : StyleTokens.clearBlack
             property real displayedWidth: baseTargetWidth
             readonly property real baseTargetWidth: {
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
@@ -1715,8 +1704,6 @@ PanelWindow {
                     return islandContainer.lyricsCapsuleWidth;
                 case "control_center":
                     return 420;
-                case "notification_center":
-                    return 410;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 1100;
@@ -1740,8 +1727,6 @@ PanelWindow {
                 case "control_center":
                     return (controlCenterLoader.item ? controlCenterLoader.item.controlCenterBaseHeight : 370)
                         + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterExtraHeight : 32);
-                case "notification_center":
-                    return notificationCenterLoader.item ? notificationCenterLoader.item.contentHeight : 200;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 260;
@@ -1762,8 +1747,6 @@ PanelWindow {
                 switch (islandContainer.islandState) {
                 case "control_center":
                     return 34;
-                case "notification_center":
-                    return mainCapsule.targetHeight * 36 / 165;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 34;
@@ -1790,7 +1773,7 @@ PanelWindow {
             )
             color: root.overviewContentVisible
                 ? root.overviewCapsuleColor
-                : (notificationHistorySurface ? "#080808" : Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0))
+                : Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0)
             y: userConfig.islandTopMargin
                 - (1 - root.autoHideProgress) * (targetHeight + userConfig.islandTopMargin + 8)
             x: parent ? parent.width * userConfig.islandPositionX / 100 - width / 2 : 0
@@ -2365,27 +2348,6 @@ PanelWindow {
                         }
                         onConnectivityPanelRequested: function(kind, open) {
                             root.setConnectivityDetailVisible(kind, open);
-                        }
-                    }
-                }
-            }
-
-            Loader {
-                id: notificationCenterLoader
-                anchors.fill: parent
-                active: islandContainer.notificationCenterLayerVisible
-                asynchronous: false
-                visible: active
-
-                sourceComponent: Component {
-                    NotificationCenterLayer {
-                        notificationModel: islandContainer.notificationHistoryModel
-                        iconFontFamily: root.iconFontFamily
-                        textFontFamily: root.textFontFamily
-                        heroFontFamily: root.heroFontFamily
-
-                        onClearAllRequested: {
-                            islandContainer.notificationHistoryModel.clear();
                         }
                     }
                 }
