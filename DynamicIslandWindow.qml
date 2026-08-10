@@ -829,6 +829,7 @@ PanelWindow {
         property string splitOriginSide: "none"
         property string restingState: "normal"
         property bool expandedByPlayerAutoOpen: false
+        readonly property int compactMediaAutoHideInterval: 2600
         property real customCapsuleWidth: 220
         property real lyricsCapsuleWidth: 220
         property bool sideSwipeSettling: false
@@ -904,6 +905,7 @@ PanelWindow {
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
         readonly property bool systemTrayLayerVisible: !root.overviewVisible && islandState === "system_tray"
+        readonly property bool compactMediaLayerVisible: !root.overviewVisible && islandState === "media_compact"
         readonly property var systemTrayDockItem: systemTrayDock
         readonly property var activePlayer: mediaController.activePlayer
         readonly property string lyricsDisplayText: mediaController.displayText
@@ -1629,6 +1631,16 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
+        function showCompactMedia() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "media_compact";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            expandedByPlayerAutoOpen = false;
+            restartAutoHideTimer(compactMediaAutoHideInterval);
+        }
+
         function showCustomCapsule() {
             if (!hasCustomLeftItems) {
                 showTimeCapsule();
@@ -1753,10 +1765,12 @@ PanelWindow {
                     && islandState !== "control_center"
                     && islandState !== "notification"
                     && islandState !== "bluetooth_expanded"
-                    && islandState !== "system_tray") {
+                    && islandState !== "system_tray"
+                    && islandState !== "expanded"
+                    && islandState !== "wallpaper_picker"
+                    && islandState !== "application_launcher") {
                 if (root.autoHideSuppressesTransientReveal) return;
-                if (islandState === "expanded" && !expandedByPlayerAutoOpen) return;
-                showExpandedPlayer(true);
+                showCompactMedia();
             }
         }
 
@@ -1815,6 +1829,12 @@ PanelWindow {
                     return 420;
                 case "system_tray":
                     return 420;
+                case "media_compact":
+                    if (!compactMediaLoader.item) return 300;
+                    return Math.max(
+                        240,
+                        Math.min(root.width - 48, compactMediaLoader.item.preferredWidth)
+                    );
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 1100;
@@ -2385,6 +2405,25 @@ PanelWindow {
                             if (!islandContainer.timerActive)
                                 islandContainer.syncTimerDuration(hours, minutes);
                         }
+                    }
+                }
+            }
+
+            Loader {
+                id: compactMediaLoader
+                anchors.fill: parent
+                active: islandContainer.compactMediaLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    CompactMediaLayer {
+                        currentTrack: islandContainer.currentTrack
+                        currentArtist: islandContainer.currentArtist
+                        currentArtUrl: islandContainer.currentArtUrl
+                        iconFontFamily: root.iconFontFamily
+                        textFontFamily: root.textFontFamily
+                        showCondition: islandContainer.compactMediaLayerVisible
                     }
                 }
             }
