@@ -279,9 +279,11 @@ PanelWindow {
     property string wallpaperPickerActiveWallpaper: userConfig.wallpaperPath
 
     Behavior on autoHideProgress {
-        NumberAnimation {
-            duration: root.autoHideTargetVisible ? 120 : 300
-            easing.type: root.autoHideTargetVisible ? Easing.OutCubic : Easing.InCubic
+        SpringAnimation {
+            spring: 7.5
+            damping: root.autoHideTargetVisible ? 0.44 : 0.82
+            mass: 0.7
+            epsilon: 0.01
         }
     }
 
@@ -1905,21 +1907,34 @@ PanelWindow {
                     displayedWidth = baseTargetWidth;
             }
 
-            Behavior on displayedWidth  {
-                NumberAnimation {
-                    duration: capsuleMouseArea.sideSwipeInteractive ? 0 : mainCapsule.morphDuration
-                    easing.type: Easing.OutQuint
+            Behavior on displayedWidth {
+                enabled: !capsuleMouseArea.sideSwipeInteractive
+
+                SpringAnimation {
+                    spring: 7.5
+                    damping: 0.45
+                    mass: 0.7
+                    epsilon: 0.5
                 }
             }
             Behavior on height {
                 enabled: !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
 
-                NumberAnimation {
-                    duration: mainCapsule.morphDuration
-                    easing.type: Easing.OutQuint
+                SpringAnimation {
+                    spring: 8
+                    damping: 0.53
+                    mass: 0.72
+                    epsilon: 0.5
                 }
             }
-            Behavior on radius { NumberAnimation { duration: mainCapsule.morphDuration; easing.type: Easing.OutQuint } }
+            Behavior on radius {
+                SpringAnimation {
+                    spring: 9
+                    damping: 0.47
+                    mass: 0.68
+                    epsilon: 0.1
+                }
+            }
             Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.InOutQuad } }
             Behavior on outlineWidth { NumberAnimation { duration: 260; easing.type: Easing.InOutQuad } }
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }

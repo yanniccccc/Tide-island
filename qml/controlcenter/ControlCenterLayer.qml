@@ -27,9 +27,11 @@ Item {
     transformOrigin: Item.Top
 
     Behavior on scale {
-        NumberAnimation {
-            duration: 400
-            easing.type: Easing.OutQuint
+        SpringAnimation {
+            spring: 7.5
+            damping: 0.45
+            mass: 0.7
+            epsilon: 0.007
         }
     }
     property string currentTime: "00:00"

@@ -32,7 +32,12 @@ Item {
 
     Behavior on opacity { NumberAnimation { duration: showCondition ? 260 : 150 } }
     Behavior on scale {
-        NumberAnimation { duration: showCondition ? 300 : 170; easing.type: Easing.OutBack }
+        SpringAnimation {
+            spring: 8
+            damping: root.showCondition ? 0.43 : 0.76
+            mass: 0.7
+            epsilon: 0.007
+        }
     }
 
     Column {
