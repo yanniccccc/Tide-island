@@ -12,6 +12,7 @@ Item {
     readonly property var activeConfig: configSource || userConfig
     property string textFontFamily: activeConfig.textFontFamily
     property bool showCondition: false
+    property bool attentionMode: false
     property int textPixelSize: userConfig.bodyFontSize
     property string slideDirection: "none"
     property bool animateVisibility: true
@@ -19,6 +20,9 @@ Item {
     property real horizontalPadding: 14
     property real hiddenLeftPadding: 16
     property real hiddenRightPadding: 16
+    readonly property int activeWorkspaceIndex: workspaceId > 0
+        ? ((workspaceId - 1) % 5) + 1
+        : 1
 
     readonly property real clampedProgress: slideDirection === "right"
         ? Math.max(0, Math.min(1, transitionProgress))
@@ -49,19 +53,90 @@ Item {
         }
     }
 
-    Text {
+    Item {
         x: labelX
         width: textWidth
-        anchors.verticalCenter: parent.verticalCenter
-        text: displayText
-        color: "white"
+        height: parent.height
         opacity: revealProgress
-        font.pixelSize: textPixelSize
-        font.family: textFontFamily
-        font.weight: Font.DemiBold
-        font.letterSpacing: -0.15
-        horizontalAlignment: Text.AlignHCenter
-        elide: Text.ElideRight
-        wrapMode: Text.NoWrap
+
+        Row {
+            id: indicatorRow
+            anchors.centerIn: parent
+            spacing: 10
+
+            Repeater {
+                model: 5
+
+                Rectangle {
+                    required property int index
+                    readonly property bool active: index + 1 === root.activeWorkspaceIndex
+
+                    width: active ? 12 : 9
+                    height: width
+                    radius: width / 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: active
+                        ? (root.attentionMode ? StyleTokens.accent : StyleTokens.textPrimaryBright)
+                        : StyleTokens.transparent
+                    border.width: active ? 0 : 1.5
+                    border.color: StyleTokens.textSecondary
+                    scale: active ? 1 : 0.92
+
+                    Behavior on width {
+                        SpringAnimation {
+                            spring: 9
+                            damping: 0.48
+                            mass: 0.7
+                            epsilon: 0.05
+                        }
+                    }
+
+                    Behavior on color {
+                        ColorAnimation { duration: 120 }
+                    }
+
+                    Behavior on scale {
+                        SpringAnimation {
+                            spring: 9
+                            damping: 0.45
+                            mass: 0.7
+                            epsilon: 0.01
+                        }
+                    }
+
+                    Rectangle {
+                        id: attentionRing
+
+                        visible: parent.active && root.attentionMode
+                        anchors.centerIn: parent
+                        width: 20
+                        height: 20
+                        radius: 10
+                        color: StyleTokens.transparent
+                        border.width: 1.5
+                        border.color: StyleTokens.accent
+
+                        SequentialAnimation on scale {
+                            running: attentionRing.visible
+                            loops: Animation.Infinite
+                            NumberAnimation {
+                                from: 0.62
+                                to: 1.18
+                                duration: 650
+                                easing.type: Easing.OutCubic
+                            }
+                            PauseAnimation { duration: 120 }
+                        }
+
+                        SequentialAnimation on opacity {
+                            running: attentionRing.visible
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 0.9; to: 0; duration: 650 }
+                            PauseAnimation { duration: 120 }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

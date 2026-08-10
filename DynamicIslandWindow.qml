@@ -826,6 +826,8 @@ PanelWindow {
         readonly property var cavaLevels: systemState.cavaLevels
         property real swipeTransitionProgress: 0
         property string workspaceOriginSide: "none"
+        property int workspaceAnnouncementId: currentWs
+        property bool workspaceAttentionMode: false
         property string splitOriginSide: "none"
         property string restingState: "normal"
         property bool expandedByPlayerAutoOpen: false
@@ -1003,6 +1005,15 @@ PanelWindow {
                 }
 
                 islandContainer.showWorkspaceCapsule(workspaceId);
+            }
+        }
+
+        HyprlandUrgentTracker {
+            enabled: !root.compositorIsNiri
+            hyprMonitor: root.hyprMonitor
+
+            onUrgentWorkspace: function(workspaceId) {
+                islandContainer.showUrgentWorkspaceCapsule(workspaceId);
             }
         }
 
@@ -1204,6 +1215,7 @@ PanelWindow {
             notificationActionable = false;
             notificationExpanded = false;
             bluetoothExpandedDevice = null;
+            workspaceAttentionMode = false;
         }
 
         function cleanNotificationText(text) {
@@ -1659,18 +1671,36 @@ PanelWindow {
             showRestingCapsule("normal");
         }
 
-        function showWorkspaceCapsule(wsId) {
-            currentWs = wsId;
+        function showWorkspaceCapsule(wsId, attentionMode) {
+            const showAttention = attentionMode === true;
+            if (!showAttention)
+                currentWs = wsId;
             if (root.autoHideSuppressesTransientReveal) return;
             if (islandState === "control_center" || islandState === "notification") return;
+            workspaceAnnouncementId = wsId;
             const animateFromSide = currentTransientOriginSide();
             clearTransientCapsule();
+            workspaceAttentionMode = showAttention;
             sideTransientRestoreTimer.stop();
             workspaceOriginSide = animateFromSide;
             splitOriginSide = "none";
             islandState = "long_capsule";
             swipeTransitionProgress = 0;
             restartAutoHideTimer();
+        }
+
+        function showUrgentWorkspaceCapsule(wsId) {
+            if (wsId < 1 || root.overviewVisible)
+                return;
+            if (islandState === "expanded"
+                    || islandState === "bluetooth_expanded"
+                    || islandState === "control_center"
+                    || islandState === "notification"
+                    || islandState === "system_tray"
+                    || islandState === "wallpaper_picker"
+                    || islandState === "application_launcher")
+                return;
+            showWorkspaceCapsule(wsId, true);
         }
 
         Timer { id: autoHideTimer; interval: islandContainer.defaultAutoHideInterval; onTriggered: islandContainer.smartRestoreState() }
@@ -2348,8 +2378,8 @@ PanelWindow {
 
                 sourceComponent: Component {
                     WorkspaceLayer {
-                        workspaceId: islandContainer.currentWs
-                        displayText: "Workspace " + islandContainer.currentWs
+                        workspaceId: islandContainer.workspaceAnnouncementId
+                        attentionMode: islandContainer.workspaceAttentionMode
                         textFontFamily: root.textFontFamily
                         textPixelSize: root.bodyFontSize
                         animateVisibility: islandContainer.restingState === "normal"
