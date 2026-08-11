@@ -14,6 +14,7 @@ Item {
     signal clearNotificationsRequested()
     signal notificationActivated(var notificationId)
     signal notificationDismissed(var notificationId)
+    signal powerMenuRequested()
 
     readonly property var userConfig: UserConfig
 
@@ -121,6 +122,7 @@ Item {
     readonly property string chargingIconGlyph: "\uf0e7"
     readonly property string ethernetGlyph: "\u{F0200}"
     readonly property string ethernetOffGlyph: "\u{F0202}"
+    readonly property string powerGlyph: "\uf011"
     readonly property string brightnessIconGlyph: "\u{F00DF}"
     readonly property string volumeIconGlyph: "\u{F057E}"
     readonly property string nightLightGlyph: "\uf186"
@@ -1264,6 +1266,28 @@ Item {
                     font.pixelSize: 18
                     font.family: controlCenter.iconFontFamily
                     anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Item {
+                    id: powerMenuButton
+                    width: 28
+                    height: 28
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: controlCenter.powerGlyph
+                        color: StyleTokens.textPrimaryBright
+                        font.pixelSize: 16
+                        font.family: controlCenter.iconFontFamily
+                    }
+
+                    MouseArea {
+                        id: powerMenuButtonArea
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: controlCenter.powerMenuRequested()
+                    }
                 }
             }
         }

@@ -864,6 +864,7 @@ PanelWindow {
             || islandState === "wallpaper_picker"
             || islandState === "application_launcher"
             || islandState === "system_tray"
+            || islandState === "power_menu"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
         readonly property bool splitShowsIconOnly: islandState === "split" && osdProgress < 0 && osdCustomText === ""
@@ -907,6 +908,7 @@ PanelWindow {
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
         readonly property bool systemTrayLayerVisible: !root.overviewVisible && islandState === "system_tray"
+        readonly property bool powerMenuLayerVisible: !root.overviewVisible && islandState === "power_menu"
         readonly property bool compactMediaLayerVisible: !root.overviewVisible && islandState === "media_compact"
         readonly property var systemTrayDockItem: systemTrayDock
         readonly property var activePlayer: mediaController.activePlayer
@@ -1496,7 +1498,8 @@ PanelWindow {
                     || root.overviewVisible
                     || islandState === "control_center"
                     || islandState === "expanded"
-                    || islandState === "system_tray") return;
+                    || islandState === "system_tray"
+                    || islandState === "power_menu") return;
 
             abortSideTransientMode();
             clearTransientCapsule();
@@ -1593,7 +1596,10 @@ PanelWindow {
         }
 
         function showBluetoothExpanded(device) {
-            if (!device || root.overviewVisible || islandState === "control_center" || islandState === "notification")
+            if (!device || root.overviewVisible
+                    || islandState === "control_center"
+                    || islandState === "notification"
+                    || islandState === "power_menu")
                 return;
 
             cancelSideSwipeSettle();
@@ -1643,6 +1649,23 @@ PanelWindow {
             stopAutoHideTimer();
         }
 
+        function showPowerMenu() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "power_menu";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            expandedByPlayerAutoOpen = false;
+            stopAutoHideTimer();
+        }
+
+        function executePowerAction(action) {
+            if (action !== "poweroff" && action !== "reboot" && action !== "suspend")
+                return;
+            Quickshell.execDetached(["systemctl", action]);
+            smartRestoreState();
+        }
+
         function showCompactMedia() {
             cancelSideSwipeSettle();
             abortSideTransientMode();
@@ -1676,7 +1699,9 @@ PanelWindow {
             if (!showAttention)
                 currentWs = wsId;
             if (root.autoHideSuppressesTransientReveal) return;
-            if (islandState === "control_center" || islandState === "notification") return;
+            if (islandState === "control_center"
+                    || islandState === "notification"
+                    || islandState === "power_menu") return;
             workspaceAnnouncementId = wsId;
             const animateFromSide = currentTransientOriginSide();
             clearTransientCapsule();
@@ -1697,6 +1722,7 @@ PanelWindow {
                     || islandState === "control_center"
                     || islandState === "notification"
                     || islandState === "system_tray"
+                    || islandState === "power_menu"
                     || islandState === "wallpaper_picker"
                     || islandState === "application_launcher")
                 return;
@@ -1796,6 +1822,7 @@ PanelWindow {
                     && islandState !== "notification"
                     && islandState !== "bluetooth_expanded"
                     && islandState !== "system_tray"
+                    && islandState !== "power_menu"
                     && islandState !== "expanded"
                     && islandState !== "wallpaper_picker"
                     && islandState !== "application_launcher") {
@@ -1859,6 +1886,8 @@ PanelWindow {
                     return 420;
                 case "system_tray":
                     return 420;
+                case "power_menu":
+                    return 420;
                 case "media_compact":
                     if (!compactMediaLoader.item) return 300;
                     return Math.max(
@@ -1892,6 +1921,10 @@ PanelWindow {
                     return systemTrayLayerLoader.item
                         ? systemTrayLayerLoader.item.preferredHeight
                         : 146;
+                case "power_menu":
+                    return powerMenuLayerLoader.item
+                        ? powerMenuLayerLoader.item.preferredHeight
+                        : 144;
                 case "wallpaper_picker":
                 case "application_launcher":
                     return 260;
@@ -1913,6 +1946,8 @@ PanelWindow {
                 case "control_center":
                     return 34;
                 case "system_tray":
+                    return 30;
+                case "power_menu":
                     return 30;
                 case "wallpaper_picker":
                 case "application_launcher":
@@ -2572,6 +2607,7 @@ PanelWindow {
                         onConnectivityPanelRequested: function(kind, open) {
                             root.setConnectivityDetailVisible(kind, open);
                         }
+                        onPowerMenuRequested: islandContainer.showPowerMenu()
                     }
                 }
             }
@@ -2612,6 +2648,26 @@ PanelWindow {
                         iconFontFamily: root.iconFontFamily
                         showCondition: islandContainer.systemTrayLayerVisible
                         onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            Loader {
+                id: powerMenuLayerLoader
+                anchors.fill: parent
+                active: islandContainer.powerMenuLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    PowerMenuLayer {
+                        textFontFamily: root.textFontFamily
+                        iconFontFamily: root.iconFontFamily
+                        showCondition: islandContainer.powerMenuLayerVisible
+                        onCloseRequested: islandContainer.smartRestoreState()
+                        onActionRequested: function(action) {
+                            islandContainer.executePowerAction(action);
+                        }
                     }
                 }
             }
