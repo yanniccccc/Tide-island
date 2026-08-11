@@ -15,6 +15,7 @@ Item {
     signal notificationActivated(var notificationId)
     signal notificationDismissed(var notificationId)
     signal powerMenuRequested()
+    signal hardwareMonitorRequested()
 
     readonly property var userConfig: UserConfig
 
@@ -46,6 +47,7 @@ Item {
     property string currentTrack: ""
     property string currentArtist: ""
     property var notificationModel: null
+    property var hardwareMonitor: null
     property bool lanConnected: false
     property string lanInterface: ""
 
@@ -136,7 +138,7 @@ Item {
         + batteryDrawerProgress * (batteryDrawerContentGap + batteryModeCardHeight)
     readonly property real controlCenterMaximumExtraHeight: 12 + batteryDrawerHandleHeight
         + batteryDrawerContentGap + batteryModeCardHeight
-    readonly property real controlCenterBaseHeight: 152 + mergedNotificationCenter.height
+    readonly property real controlCenterBaseHeight: 234 + mergedNotificationCenter.height
     readonly property bool bluetoothAvailable: !!bluetoothAdapter
     readonly property var bluetoothAdapter: Bluetooth.defaultAdapter
     readonly property var bluetoothDeviceValues: bluetoothAdapter ? bluetoothAdapter.devices.values : []
@@ -1289,6 +1291,123 @@ Item {
                         onClicked: controlCenter.powerMenuRequested()
                     }
                 }
+            }
+        }
+
+        Rectangle {
+            id: hardwareSummaryCard
+            width: parent.width
+            height: 70
+            radius: 20
+            color: StyleTokens.module
+
+            MouseArea {
+                id: hardwareSummaryMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: controlCenter.hardwareMonitorRequested()
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: hardwareSummaryMouse.containsMouse ? StyleTokens.moduleHover : StyleTokens.transparent
+            }
+
+            Column {
+                anchors.left: parent.left
+                anchors.leftMargin: 15
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 3
+
+                Text {
+                    text: "Hardware"
+                    color: StyleTokens.textPrimaryBright
+                    font.family: controlCenter.textFontFamily
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+
+                Text {
+                    text: "Open detailed monitor"
+                    color: StyleTokens.textMuted
+                    font.family: controlCenter.textFontFamily
+                    font.pixelSize: 9
+                }
+            }
+
+            Row {
+                anchors.right: openHardwareArrow.left
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 14
+
+                Column {
+                    spacing: 2
+                    Text {
+                        text: "CPU"
+                        color: StyleTokens.textMuted
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 8
+                    }
+                    Text {
+                        text: controlCenter.hardwareMonitor
+                            ? controlCenter.hardwareMonitor.shortTextFor("cpu_usage") : "--"
+                        color: StyleTokens.textPrimaryBright
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                }
+
+                Column {
+                    spacing: 2
+                    Text {
+                        text: "RAM"
+                        color: StyleTokens.textMuted
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 8
+                    }
+                    Text {
+                        text: controlCenter.hardwareMonitor
+                            ? controlCenter.hardwareMonitor.shortTextFor("ram_usage") : "--"
+                        color: StyleTokens.textPrimaryBright
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                }
+
+                Column {
+                    spacing: 2
+                    Text {
+                        text: "GPU"
+                        color: StyleTokens.textMuted
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 8
+                    }
+                    Text {
+                        text: controlCenter.hardwareMonitor
+                            ? controlCenter.hardwareMonitor.shortTextFor("gpu_usage") : "--"
+                        color: controlCenter.hardwareMonitor && controlCenter.hardwareMonitor.gpuUsage >= 0
+                            ? StyleTokens.textPrimaryBright : StyleTokens.textDisabled
+                        font.family: controlCenter.textFontFamily
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                }
+            }
+
+            Text {
+                id: openHardwareArrow
+                anchors.right: parent.right
+                anchors.rightMargin: 15
+                anchors.verticalCenter: parent.verticalCenter
+                text: "›"
+                color: StyleTokens.textSecondary
+                font.family: controlCenter.textFontFamily
+                font.pixelSize: 24
             }
         }
 

@@ -17,6 +17,11 @@ Scope {
     property bool islandAutoHideRuntimeEnabled: true
     property var notificationObjects: ({})
     property var pinnedTrayIds: []
+    property var pinnedHardwareStatIds: []
+
+    readonly property var hardwareStatIds: [
+        "cpu_usage", "cpu_temp", "ram_usage", "gpu_usage", "gpu_temp"
+    ]
 
     readonly property var userConfig: UserConfig
 
@@ -49,16 +54,41 @@ Scope {
         trayPinsFile.writeAdapter();
     }
 
+    function isHardwareStatPinned(statId) {
+        return pinnedHardwareStatIds.indexOf(String(statId || "")) >= 0;
+    }
+
+    function toggleHardwareStatPinned(statId) {
+        const key = String(statId || "");
+        if (hardwareStatIds.indexOf(key) < 0)
+            return;
+
+        const nextIds = pinnedHardwareStatIds.slice();
+        const currentIndex = nextIds.indexOf(key);
+        if (currentIndex >= 0)
+            nextIds.splice(currentIndex, 1);
+        else
+            nextIds.push(key);
+
+        pinnedHardwareStatIds = nextIds;
+        trayPinStore.pinnedHardwareStats = nextIds;
+        trayPinsFile.writeAdapter();
+    }
+
     function loadTrayPinsFromDisk() {
         let storedIds = [];
+        let storedStats = [];
         try {
             const contents = trayPinsFile.text();
             if (contents.trim() !== "") {
                 const parsed = JSON.parse(contents);
                 storedIds = parsed && Array.isArray(parsed.pinnedIds) ? parsed.pinnedIds : [];
+                storedStats = parsed && Array.isArray(parsed.pinnedHardwareStats)
+                    ? parsed.pinnedHardwareStats : [];
             }
         } catch (error) {
             storedIds = [];
+            storedStats = [];
         }
 
         const cleanIds = [];
@@ -71,6 +101,14 @@ Scope {
             cleanIds.push(itemId);
         }
         pinnedTrayIds = cleanIds;
+
+        const cleanStats = [];
+        for (let statIndex = 0; statIndex < storedStats.length; ++statIndex) {
+            const statId = String(storedStats[statIndex] || "");
+            if (hardwareStatIds.indexOf(statId) >= 0 && cleanStats.indexOf(statId) < 0)
+                cleanStats.push(statId);
+        }
+        pinnedHardwareStatIds = cleanStats;
     }
 
     FileView {
@@ -85,6 +123,7 @@ Scope {
         JsonAdapter {
             id: trayPinStore
             property var pinnedIds: []
+            property var pinnedHardwareStats: []
         }
 
         onLoaded: shellRoot.loadTrayPinsFromDisk()

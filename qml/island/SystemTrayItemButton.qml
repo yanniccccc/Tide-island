@@ -13,6 +13,7 @@ Item {
     property bool showLabel: false
     property bool showPinOnHover: true
     property bool compact: false
+    property real compactIconSize: 20
     property string textFontFamily: ""
     property string iconFontFamily: ""
     readonly property bool hovered: itemMouseArea.containsMouse || pinMouseArea.containsMouse
@@ -81,7 +82,7 @@ Item {
 
         Item {
             anchors.horizontalCenter: parent.horizontalCenter
-            width: root.compact ? 20 : 28
+            width: root.compact ? root.compactIconSize : 28
             height: width
 
             Item {

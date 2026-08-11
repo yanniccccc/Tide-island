@@ -8,10 +8,15 @@ Item {
 
     property var shellController: null
     property var parentWindow: null
+    property var hardwareMonitor: null
     property string textFontFamily: ""
     property string iconFontFamily: ""
+    property real railHeight: 34
     property bool showCondition: true
     readonly property var trayItems: SystemTray.items.values
+    readonly property bool railHovered: dockHover.hovered
+    readonly property int pinnedHardwareCount: shellController && shellController.pinnedHardwareStatIds
+        ? shellController.pinnedHardwareStatIds.length : 0
     readonly property int attentionCount: {
         let total = 0;
         for (let index = 0; index < trayItems.length; ++index) {
@@ -24,18 +29,150 @@ Item {
         return total;
     }
 
-    implicitWidth: dockRow.implicitWidth
-    implicitHeight: 34
+    implicitWidth: dockRow.implicitWidth + 10
+    implicitHeight: railHeight
     visible: showCondition
     opacity: showCondition ? 1 : 0
 
     Behavior on opacity { NumberAnimation { duration: 180 } }
 
+    HoverHandler {
+        id: dockHover
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        anchors.topMargin: 2
+        anchors.bottomMargin: -2
+        radius: height / 2
+        color: "#28000000"
+        opacity: root.railHovered ? 0.72 : 0.52
+
+        Behavior on opacity { NumberAnimation { duration: 160 } }
+    }
+
+    Rectangle {
+        id: statusRail
+        anchors.fill: parent
+        radius: height / 2
+        border.width: 1
+        border.color: root.railHovered ? "#30ffffff" : "#1cffffff"
+        gradient: Gradient {
+            GradientStop {
+                position: 0
+                color: root.railHovered ? "#761d2026" : "#5c1a1d22"
+            }
+            GradientStop {
+                position: 1
+                color: root.railHovered ? "#82101217" : "#68101216"
+            }
+        }
+
+        Behavior on border.color { ColorAnimation { duration: 160 } }
+
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.topMargin: 1
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            height: 1
+            radius: 1
+            color: root.railHovered ? "#26ffffff" : "#18ffffff"
+
+            Behavior on color { ColorAnimation { duration: 160 } }
+        }
+    }
+
     Row {
         id: dockRow
+        z: 1
         anchors.right: parent.right
+        anchors.rightMargin: 5
         anchors.verticalCenter: parent.verticalCenter
         spacing: 5
+        opacity: root.railHovered ? 0.96 : 0.72
+
+        Behavior on opacity { NumberAnimation { duration: 160 } }
+
+        Repeater {
+            model: root.shellController && root.shellController.pinnedHardwareStatIds
+                ? root.shellController.pinnedHardwareStatIds : []
+
+            delegate: Item {
+                id: hardwareTag
+                required property string modelData
+                width: 66
+                height: 30
+                scale: statMouse.pressed ? 0.91 : (statMouse.containsMouse ? 1.04 : 1)
+
+                Behavior on scale {
+                    NumberAnimation { duration: 130; easing.type: Easing.OutCubic }
+                }
+
+                Item {
+                    id: hardwareTagComposite
+                    anchors.centerIn: parent
+                    width: hardwareTagRow.implicitWidth
+                    height: 20
+
+                    Row {
+                        id: hardwareTagRow
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.hardwareMonitor
+                                ? root.hardwareMonitor.componentLabelFor(hardwareTag.modelData) : "HW"
+                            color: StyleTokens.textPrimaryBright
+                            font.family: root.textFontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.Bold
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.hardwareMonitor
+                                ? root.hardwareMonitor.shortTextFor(hardwareTag.modelData) : "--"
+                            color: StyleTokens.textPrimaryBright
+                            font.family: root.textFontFamily
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+
+                MouseArea {
+                    id: statMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.parentWindow && root.parentWindow.toggleHardwareMonitorWindow)
+                            root.parentWindow.toggleHardwareMonitorWindow();
+                    }
+                }
+            }
+        }
+
+        Item {
+            visible: root.pinnedHardwareCount > 0
+            width: 7
+            height: 22
+            anchors.verticalCenter: parent.verticalCenter
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 1
+                height: 16
+                radius: 1
+                color: root.railHovered ? "#38ffffff" : "#24ffffff"
+
+                Behavior on color { ColorAnimation { duration: 160 } }
+            }
+        }
 
         Repeater {
             model: root.trayItems
@@ -48,9 +185,10 @@ Item {
                     : false
 
                 visible: itemPinned
-                width: visible ? 30 : 0
-                height: 30
+                width: visible ? 26 : 0
+                height: 26
                 compact: true
+                compactIconSize: 16
                 showPinOnHover: true
                 trayItem: modelData
                 shellController: root.shellController
@@ -62,8 +200,8 @@ Item {
 
         Item {
             id: launcher
-            width: 32
-            height: 32
+            width: 28
+            height: 28
             scale: launcherMouse.pressed ? 0.9 : (launcherMouse.containsMouse ? 1.06 : 1)
 
             Behavior on scale { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
@@ -88,16 +226,16 @@ Item {
                 Repeater {
                     model: 4
                     Rectangle {
-                        width: 6
-                        height: 6
-                        radius: 3
+                        width: 5
+                        height: 5
+                        radius: 2.5
                         color: "#c9000000"
 
                         Rectangle {
                             anchors.centerIn: parent
-                            width: 4
-                            height: 4
-                            radius: 2
+                            width: 3
+                            height: 3
+                            radius: 1.5
                             color: StyleTokens.textPrimaryBright
                         }
                     }

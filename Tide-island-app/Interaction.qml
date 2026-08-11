@@ -14,7 +14,7 @@ PagePanel {
     ]
     readonly property var hoverActionOptions: [
         { "label": "Disabled", "value": 0 },
-        { "label": "Music Player", "value": 1 },
+        { "label": "Overview", "value": 1 },
         { "label": "Control Center", "value": 2 }
     ]
 

@@ -41,6 +41,7 @@ PanelWindow {
     }
     readonly property bool trayDockEnabled: shellRootController !== null
     readonly property bool systemTrayOpen: islandContainer.islandState === "system_tray"
+    readonly property bool hardwareMonitorOpen: islandContainer.islandState === "hardware_monitor"
     readonly property bool connectivityPromptActive: controlCenterLoader.item
         ? controlCenterLoader.item.hasConnectivityPrompt
         : false
@@ -654,6 +655,14 @@ PanelWindow {
         showAutoHiddenIsland("manual");
     }
 
+    function toggleHardwareMonitorWindow() {
+        if (islandContainer.islandState === "hardware_monitor")
+            islandContainer.smartRestoreState();
+        else
+            islandContainer.showHardwareMonitor();
+        showAutoHiddenIsland("manual");
+    }
+
     onOverviewVisibleChanged: {
         if (overviewVisible && monitorFocused) overviewFocusTimer.restart();
         if (overviewVisible)
@@ -858,12 +867,14 @@ PanelWindow {
             && !root.overviewVisible
             && (islandState === "normal" || islandState === "lyrics" || islandState === "custom")
         readonly property bool blocksTransientSplit: islandState === "expanded"
+            || islandState === "hover_overview"
             || islandState === "bluetooth_expanded"
             || islandState === "control_center"
             || islandState === "notification"
             || islandState === "wallpaper_picker"
             || islandState === "application_launcher"
             || islandState === "system_tray"
+            || islandState === "hardware_monitor"
             || islandState === "power_menu"
         readonly property bool splitShowsProgress: islandState === "split" && osdProgress >= 0
         readonly property bool splitShowsText: islandState === "split" && osdProgress < 0 && osdCustomText !== ""
@@ -908,9 +919,12 @@ PanelWindow {
         readonly property bool wallpaperPickerLayerVisible: !root.overviewVisible && islandState === "wallpaper_picker"
         readonly property bool applicationLauncherLayerVisible: !root.overviewVisible && islandState === "application_launcher"
         readonly property bool systemTrayLayerVisible: !root.overviewVisible && islandState === "system_tray"
+        readonly property bool hardwareMonitorLayerVisible: !root.overviewVisible && islandState === "hardware_monitor"
         readonly property bool powerMenuLayerVisible: !root.overviewVisible && islandState === "power_menu"
         readonly property bool compactMediaLayerVisible: !root.overviewVisible && islandState === "media_compact"
+        readonly property bool hoverOverviewLayerVisible: !root.overviewVisible && islandState === "hover_overview"
         readonly property var systemTrayDockItem: systemTrayDock
+        readonly property var hardwareMonitorModel: hardwareMonitor
         readonly property var activePlayer: mediaController.activePlayer
         readonly property string lyricsDisplayText: mediaController.displayText
         readonly property string currentTrack: mediaController.currentTrack
@@ -986,6 +1000,11 @@ PanelWindow {
             onTransientRequested: function(icon, progress, text) {
                 islandContainer.showTransientCapsule(icon, progress, text);
             }
+        }
+
+        HardwareMonitor {
+            id: hardwareMonitor
+            active: true
         }
 
         CompositorWorkspaceTracker {
@@ -1498,7 +1517,9 @@ PanelWindow {
                     || root.overviewVisible
                     || islandState === "control_center"
                     || islandState === "expanded"
+                    || islandState === "hover_overview"
                     || islandState === "system_tray"
+                    || islandState === "hardware_monitor"
                     || islandState === "power_menu") return;
 
             abortSideTransientMode();
@@ -1595,9 +1616,21 @@ PanelWindow {
             else stopAutoHideTimer();
         }
 
+        function showHoverOverview() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "hover_overview";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            expandedByPlayerAutoOpen = false;
+            stopAutoHideTimer();
+        }
+
         function showBluetoothExpanded(device) {
             if (!device || root.overviewVisible
                     || islandState === "control_center"
+                    || islandState === "hover_overview"
+                    || islandState === "hardware_monitor"
                     || islandState === "notification"
                     || islandState === "power_menu")
                 return;
@@ -1646,6 +1679,17 @@ PanelWindow {
             islandState = "system_tray";
             mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
             expandedByPlayerAutoOpen = false;
+            stopAutoHideTimer();
+        }
+
+        function showHardwareMonitor() {
+            cancelSideSwipeSettle();
+            abortSideTransientMode();
+            clearTransientCapsule();
+            islandState = "hardware_monitor";
+            mainCapsule.displayedWidth = mainCapsule.baseTargetWidth;
+            expandedByPlayerAutoOpen = false;
+            hardwareMonitor.refresh();
             stopAutoHideTimer();
         }
 
@@ -1700,6 +1744,8 @@ PanelWindow {
                 currentWs = wsId;
             if (root.autoHideSuppressesTransientReveal) return;
             if (islandState === "control_center"
+                    || islandState === "hover_overview"
+                    || islandState === "hardware_monitor"
                     || islandState === "notification"
                     || islandState === "power_menu") return;
             workspaceAnnouncementId = wsId;
@@ -1718,10 +1764,12 @@ PanelWindow {
             if (wsId < 1 || root.overviewVisible)
                 return;
             if (islandState === "expanded"
+                    || islandState === "hover_overview"
                     || islandState === "bluetooth_expanded"
                     || islandState === "control_center"
                     || islandState === "notification"
                     || islandState === "system_tray"
+                    || islandState === "hardware_monitor"
                     || islandState === "power_menu"
                     || islandState === "wallpaper_picker"
                     || islandState === "application_launcher")
@@ -1779,7 +1827,7 @@ PanelWindow {
                 if (!root.hoverExpandEnabled) return;
 
                 const current = islandContainer.islandState;
-                const target = root.configuredHoverExpandAction === 2 ? "control_center" : "expanded";
+                const target = root.configuredHoverExpandAction === 2 ? "control_center" : "hover_overview";
                 if (current === target) return;
                 if (current !== "normal" && current !== "custom" && current !== "lyrics")
                     return;
@@ -1788,7 +1836,7 @@ PanelWindow {
                 if (root.configuredHoverExpandAction === 2)
                     islandContainer.showControlCenter();
                 else
-                    islandContainer.showExpandedPlayer(false);
+                    islandContainer.showHoverOverview();
             }
         }
         Timer {
@@ -1822,8 +1870,10 @@ PanelWindow {
                     && islandState !== "notification"
                     && islandState !== "bluetooth_expanded"
                     && islandState !== "system_tray"
+                    && islandState !== "hardware_monitor"
                     && islandState !== "power_menu"
                     && islandState !== "expanded"
+                    && islandState !== "hover_overview"
                     && islandState !== "wallpaper_picker"
                     && islandState !== "application_launcher") {
                 if (root.autoHideSuppressesTransientReveal) return;
@@ -1844,6 +1894,8 @@ PanelWindow {
             showCondition: root.trayDockEnabled
             shellController: root.shellRootController
             parentWindow: root
+            hardwareMonitor: islandContainer.hardwareMonitorModel
+            railHeight: userConfig.islandHeight
             textFontFamily: root.textFontFamily
             iconFontFamily: root.iconFontFamily
         }
@@ -1886,8 +1938,12 @@ PanelWindow {
                     return 420;
                 case "system_tray":
                     return 420;
+                case "hardware_monitor":
+                    return 420;
                 case "power_menu":
                     return 420;
+                case "hover_overview":
+                    return 300;
                 case "media_compact":
                     if (!compactMediaLoader.item) return 300;
                     return Math.max(
@@ -1921,6 +1977,10 @@ PanelWindow {
                     return systemTrayLayerLoader.item
                         ? systemTrayLayerLoader.item.preferredHeight
                         : 146;
+                case "hardware_monitor":
+                    return hardwareMonitorLayerLoader.item
+                        ? hardwareMonitorLayerLoader.item.preferredHeight
+                        : 412;
                 case "power_menu":
                     return powerMenuLayerLoader.item
                         ? powerMenuLayerLoader.item.preferredHeight
@@ -1931,6 +1991,8 @@ PanelWindow {
                 case "expanded":
                 case "bluetooth_expanded":
                     return 165;
+                case "hover_overview":
+                    return 110;
                 case "notification":
                     return notificationLoader.item
                         ? Math.max(56, notificationLoader.item.preferredHeight)
@@ -1947,6 +2009,8 @@ PanelWindow {
                     return 34;
                 case "system_tray":
                     return 30;
+                case "hardware_monitor":
+                    return 30;
                 case "power_menu":
                     return 30;
                 case "wallpaper_picker":
@@ -1955,6 +2019,8 @@ PanelWindow {
                 case "expanded":
                 case "bluetooth_expanded":
                     return 40;
+                case "hover_overview":
+                    return 32;
                 case "notification":
                     return islandContainer.notificationExpanded ? 28 : mainCapsule.targetHeight / 2;
                 default:
@@ -2475,6 +2541,24 @@ PanelWindow {
             }
 
             Loader {
+                id: hoverOverviewLoader
+                anchors.fill: parent
+                active: islandContainer.hoverOverviewLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    HoverOverviewLayer {
+                        currentTime: timeObj.currentTime
+                        currentDateLabel: timeObj.currentDateLabel
+                        textFontFamily: root.textFontFamily
+                        heroFontFamily: root.heroFontFamily
+                        showCondition: islandContainer.hoverOverviewLayerVisible
+                    }
+                }
+            }
+
+            Loader {
                 id: compactMediaLoader
                 anchors.fill: parent
                 active: islandContainer.compactMediaLayerVisible
@@ -2570,6 +2654,7 @@ PanelWindow {
                         currentTrack: islandContainer.currentTrack
                         currentArtist: islandContainer.currentArtist
                         notificationModel: islandContainer.notificationHistoryModel
+                        hardwareMonitor: islandContainer.hardwareMonitorModel
                         focusEnabled: root.shellRootController && root.shellRootController.focusEnabled !== undefined
                             ? root.shellRootController.focusEnabled
                             : false
@@ -2608,6 +2693,7 @@ PanelWindow {
                             root.setConnectivityDetailVisible(kind, open);
                         }
                         onPowerMenuRequested: islandContainer.showPowerMenu()
+                        onHardwareMonitorRequested: islandContainer.showHardwareMonitor()
                     }
                 }
             }
@@ -2647,6 +2733,25 @@ PanelWindow {
                         textFontFamily: root.textFontFamily
                         iconFontFamily: root.iconFontFamily
                         showCondition: islandContainer.systemTrayLayerVisible
+                        onCloseRequested: islandContainer.smartRestoreState()
+                    }
+                }
+            }
+
+            Loader {
+                id: hardwareMonitorLayerLoader
+                anchors.fill: parent
+                active: islandContainer.hardwareMonitorLayerVisible
+                asynchronous: false
+                visible: active
+
+                sourceComponent: Component {
+                    HardwareMonitorLayer {
+                        hardwareMonitor: islandContainer.hardwareMonitorModel
+                        shellController: root.shellRootController
+                        textFontFamily: root.textFontFamily
+                        iconFontFamily: root.iconFontFamily
+                        showCondition: islandContainer.hardwareMonitorLayerVisible
                         onCloseRequested: islandContainer.smartRestoreState()
                     }
                 }
