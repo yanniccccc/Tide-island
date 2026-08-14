@@ -150,26 +150,9 @@ PanelWindow {
                 + islandContainer.systemTrayDockItem.height + 4)
             : 0
     )
-    // Grow the layer surface immediately, but keep the old extent while the
-    // capsule finishes its collapse animation. A later expansion interrupts
-    // the pending shrink instead of letting a stale timer clip new content.
-    property real retainedWindowHeight: 0
-    implicitHeight: Math.max(root.requestedWindowHeight, root.retainedWindowHeight)
-
-    function reconcileWindowHeight() {
-        if (root.requestedWindowHeight >= root.retainedWindowHeight) {
-            windowShrinkTimer.stop();
-            root.retainedWindowHeight = root.requestedWindowHeight;
-            return;
-        }
-
-        windowShrinkTimer.restart();
-    }
-
-    onRequestedWindowHeightChanged: root.reconcileWindowHeight()
-    Component.onCompleted: {
-        root.retainedWindowHeight = root.requestedWindowHeight;
-    }
+    // A stable extent prevents close/idle/open cycles from reconfiguring the
+    // layer surface in the middle of the capsule morph animation.
+    implicitHeight: Math.max(root.requestedWindowHeight, root.stableWindowHeight)
 
     exclusiveZone: Math.ceil(root.baseExclusiveZone * root.exclusiveZoneProgress)
     WlrLayershell.layer: islandContainer.wallpaperPickerLayerVisible
@@ -278,6 +261,17 @@ PanelWindow {
     readonly property real controlCenterMaximumExtraHeight: controlCenterLoader.item
         ? controlCenterLoader.item.controlCenterMaximumExtraHeight
         : 120
+    // Keep the layer surface large enough for every control-center state even
+    // while its loader is inactive. Resizing a Wayland layer surface on the
+    // first expansion can blank all of its contents for a frame, including
+    // the independent tray dock. The input mask above still restricts pointer
+    // input to the visible surfaces.
+    readonly property real controlCenterMaximumBaseHeight: 234 + 340
+    readonly property real stableWindowHeight: root.gameModeBarActive
+        ? Math.ceil(userConfig.islandHeight)
+        : Math.ceil(userConfig.islandTopMargin
+            + root.controlCenterMaximumBaseHeight
+            + root.controlCenterMaximumExtraHeight + 12)
     readonly property real controlCenterWindowHeight: islandContainer.controlCenterLayerVisible
         ? userConfig.islandTopMargin
             + (controlCenterLoader.item ? controlCenterLoader.item.controlCenterBaseHeight : 370)
@@ -753,13 +747,6 @@ PanelWindow {
         onTriggered: {
             islandContainer.forceActiveFocus();
         }
-    }
-
-    Timer {
-        id: windowShrinkTimer
-        interval: 1000
-        repeat: false
-        onTriggered: root.retainedWindowHeight = root.requestedWindowHeight
     }
 
     Timer {
