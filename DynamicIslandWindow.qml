@@ -1933,6 +1933,14 @@ PanelWindow {
             property color outlineColor: root.overviewContentVisible
                 ? root.overviewCapsuleBorderColor
                 : StyleTokens.clearBlack
+            readonly property bool restingHoverActive: capsuleMouseArea.containsMouse
+                && !capsuleMouseArea.sideSwipeInteractive
+                && !root.overviewVisible
+                && (islandContainer.islandState === "normal"
+                    || islandContainer.islandState === "custom"
+                    || islandContainer.islandState === "lyrics")
+            readonly property real restingHoverWidth: restingHoverActive ? 10 : 0
+            readonly property real restingHoverHeight: restingHoverActive ? 3 : 0
             property real displayedWidth: baseTargetWidth
             readonly property real baseTargetWidth: {
                 if (root.gameModeBarActive) return root.width;
@@ -1957,9 +1965,9 @@ PanelWindow {
                 case "long_capsule":
                     return 220;
                 case "custom":
-                    return islandContainer.customCapsuleWidth;
+                    return islandContainer.customCapsuleWidth + mainCapsule.restingHoverWidth;
                 case "lyrics":
-                    return islandContainer.lyricsCapsuleWidth;
+                    return islandContainer.lyricsCapsuleWidth + mainCapsule.restingHoverWidth;
                 case "control_center":
                     return 420;
                 case "system_tray":
@@ -1989,7 +1997,7 @@ PanelWindow {
                         Math.min(root.width - 48, notificationLoader.item.maximumWidth, notificationLoader.item.preferredWidth)
                     );
                 default:
-                    return userConfig.islandWidth;
+                    return userConfig.islandWidth + mainCapsule.restingHoverWidth;
                 }
             }
             readonly property real targetHeight: {
@@ -2025,7 +2033,7 @@ PanelWindow {
                         ? Math.max(56, notificationLoader.item.preferredHeight)
                         : 56;
                 default:
-                    return userConfig.islandHeight;
+                    return userConfig.islandHeight + mainCapsule.restingHoverHeight;
                 }
             }
             readonly property real targetRadius: {
@@ -2052,7 +2060,7 @@ PanelWindow {
                 case "notification":
                     return islandContainer.notificationExpanded ? 28 : mainCapsule.targetHeight / 2;
                 default:
-                    return userConfig.islandHeight / 2;
+                    return mainCapsule.targetHeight / 2;
                 }
             }
             function sideSwipeWidthForProgress(progressValue) {
@@ -2174,7 +2182,7 @@ PanelWindow {
                 enabled: !root.overviewVisible && twoFingerTouchArea.touchPoints.length < 2
                 acceptedButtons: root.dynamicIslandAcceptedButtons
                 preventStealing: true
-                hoverEnabled: root.hoverExpandEnabled || root.autoHideEnabled
+                hoverEnabled: true
                 property real swipeStartX: 0
                 property real swipeStartY: 0
                 property real swipeStartProgress: 0
