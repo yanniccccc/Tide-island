@@ -15,6 +15,7 @@ Scope {
     property bool nightLightEnabled: false
     property bool shuttingDown: false
     property bool islandAutoHideRuntimeEnabled: true
+    property bool gameModeEnabled: false
     property var notificationObjects: ({})
     property var pinnedTrayIds: []
     property var pinnedHardwareStatIds: []
@@ -24,6 +25,39 @@ Scope {
     ]
 
     readonly property var userConfig: UserConfig
+
+    function refreshGameModeState() {
+        if (CompositorBackend.compositor !== "hyprland" || gameModeQuery.running)
+            return;
+        gameModeQuery.running = true;
+    }
+
+    Process {
+        id: gameModeQuery
+        command: ["hyprctl", "getoption", "animations:enabled", "-j"]
+        running: false
+
+        stdout: SplitParser {
+            onRead: function(line) {
+                try {
+                    const option = JSON.parse(String(line || ""));
+                    if (option.int !== undefined)
+                        shellRoot.gameModeEnabled = Number(option.int) === 0;
+                    else if (option.bool !== undefined)
+                        shellRoot.gameModeEnabled = !Boolean(option.bool);
+                } catch (error) {
+                }
+            }
+        }
+    }
+
+    Timer {
+        interval: 400
+        repeat: true
+        running: CompositorBackend.compositor === "hyprland"
+        triggeredOnStart: true
+        onTriggered: shellRoot.refreshGameModeState()
+    }
 
     function trayItemKey(item) {
         if (!item)
@@ -310,12 +344,8 @@ Scope {
 
     function refreshOverviewWallpaperCaches(wallpaperPath) {
         shellRoot.forEachWindow((window) => {
-            if (window
-                    && wallpaperPath !== undefined
-                    && wallpaperPath !== null
-                    && String(wallpaperPath) !== "") {
-                window.wallpaperPickerActiveWallpaper = String(wallpaperPath);
-            }
+            if (window && window.refreshWallpaperContrast)
+                window.refreshWallpaperContrast(wallpaperPath);
             if (window && window.prewarmWallpaperCache)
                 window.prewarmWallpaperCache();
         });

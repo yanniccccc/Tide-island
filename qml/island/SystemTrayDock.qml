@@ -13,6 +13,8 @@ Item {
     property string iconFontFamily: ""
     property real railHeight: 34
     property bool showCondition: true
+    property bool barMode: false
+    property color adaptiveForeground: StyleTokens.textPrimaryBright
     readonly property var trayItems: SystemTray.items.values
     readonly property bool railHovered: dockHover.hovered
     readonly property int pinnedHardwareCount: shellController && shellController.pinnedHardwareStatIds
@@ -46,7 +48,7 @@ Item {
         anchors.bottomMargin: -2
         radius: height / 2
         color: "#28000000"
-        opacity: root.railHovered ? 0.72 : 0.52
+        opacity: root.barMode ? 0 : (root.railHovered ? 0.72 : 0.52)
 
         Behavior on opacity { NumberAnimation { duration: 160 } }
     }
@@ -55,6 +57,7 @@ Item {
         id: statusRail
         anchors.fill: parent
         radius: height / 2
+        opacity: root.barMode ? 0 : 1
         border.width: 1
         border.color: root.railHovered ? "#30ffffff" : "#1cffffff"
         gradient: Gradient {
@@ -92,7 +95,7 @@ Item {
         anchors.rightMargin: 5
         anchors.verticalCenter: parent.verticalCenter
         spacing: 5
-        opacity: root.railHovered ? 0.96 : 0.72
+        opacity: root.barMode ? 1 : (root.railHovered ? 0.96 : 0.72)
 
         Behavior on opacity { NumberAnimation { duration: 160 } }
 
@@ -103,7 +106,7 @@ Item {
             delegate: Item {
                 id: hardwareTag
                 required property string modelData
-                width: 66
+                width: hardwareTagRow.implicitWidth + 8
                 height: 30
                 scale: statMouse.pressed ? 0.91 : (statMouse.containsMouse ? 1.04 : 1)
 
@@ -120,15 +123,15 @@ Item {
                     Row {
                         id: hardwareTagRow
                         anchors.centerIn: parent
-                        spacing: 5
+                        spacing: 3
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.hardwareMonitor
                                 ? root.hardwareMonitor.componentLabelFor(hardwareTag.modelData) : "HW"
-                            color: StyleTokens.textPrimaryBright
+                            color: root.barMode ? root.adaptiveForeground : StyleTokens.textPrimaryBright
                             font.family: root.textFontFamily
-                            font.pixelSize: 9
+                            font.pixelSize: 10
                             font.weight: Font.Bold
                         }
 
@@ -136,10 +139,10 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.hardwareMonitor
                                 ? root.hardwareMonitor.shortTextFor(hardwareTag.modelData) : "--"
-                            color: StyleTokens.textPrimaryBright
+                            color: root.barMode ? root.adaptiveForeground : StyleTokens.textPrimaryBright
                             font.family: root.textFontFamily
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
+                            font.pixelSize: 11
+                            font.weight: Font.Bold
                         }
                     }
                 }
@@ -168,7 +171,10 @@ Item {
                 width: 1
                 height: 16
                 radius: 1
-                color: root.railHovered ? "#38ffffff" : "#24ffffff"
+                color: root.barMode
+                    ? Qt.rgba(root.adaptiveForeground.r, root.adaptiveForeground.g,
+                              root.adaptiveForeground.b, root.railHovered ? 0.34 : 0.24)
+                    : (root.railHovered ? "#38ffffff" : "#24ffffff")
 
                 Behavior on color { ColorAnimation { duration: 160 } }
             }
@@ -195,6 +201,7 @@ Item {
                 parentWindow: root.parentWindow
                 textFontFamily: root.textFontFamily
                 iconFontFamily: root.iconFontFamily
+                barMode: root.barMode
             }
         }
 
@@ -209,9 +216,12 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
-                color: launcherMouse.containsMouse || (root.parentWindow && root.parentWindow.systemTrayOpen)
-                    ? "#343840" : StyleTokens.transparent
-                border.width: root.parentWindow && root.parentWindow.systemTrayOpen ? 1 : 0
+                color: root.barMode
+                    ? StyleTokens.transparent
+                    : (launcherMouse.containsMouse || (root.parentWindow && root.parentWindow.systemTrayOpen)
+                        ? "#343840" : StyleTokens.transparent)
+                border.width: !root.barMode && root.parentWindow
+                    && root.parentWindow.systemTrayOpen ? 1 : 0
                 border.color: "#505660"
 
                 Behavior on color { ColorAnimation { duration: 130 } }
@@ -229,14 +239,14 @@ Item {
                         width: 5
                         height: 5
                         radius: 2.5
-                        color: "#c9000000"
+                        color: root.barMode ? StyleTokens.transparent : "#c9000000"
 
                         Rectangle {
                             anchors.centerIn: parent
                             width: 3
                             height: 3
                             radius: 1.5
-                            color: StyleTokens.textPrimaryBright
+                            color: root.barMode ? root.adaptiveForeground : StyleTokens.textPrimaryBright
                         }
                     }
                 }
@@ -246,7 +256,7 @@ Item {
                 anchors.fill: launcherGlyph
                 source: launcherGlyph
                 autoPaddingEnabled: true
-                shadowEnabled: true
+                shadowEnabled: !root.barMode
                 shadowColor: "#f0000000"
                 shadowOpacity: 0.95
                 shadowBlur: 0.65

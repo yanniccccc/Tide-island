@@ -13,6 +13,7 @@ Item {
     property bool showLabel: false
     property bool showPinOnHover: true
     property bool compact: false
+    property bool barMode: false
     property real compactIconSize: 20
     property string textFontFamily: ""
     property string iconFontFamily: ""
@@ -67,10 +68,14 @@ Item {
         anchors.fill: parent
         radius: root.compact ? width / 2 : 18
         color: root.compact
-            ? (root.hovered ? "#343840" : StyleTokens.transparent)
+            ? (root.barMode
+                ? (root.hovered ? "#d0282c33" : "#b01a1d22")
+                : (root.hovered ? "#343840" : StyleTokens.transparent))
             : (root.hovered ? "#292c33" : "#1d2026")
-        border.width: root.compact ? 0 : 1
-        border.color: root.hovered ? "#414650" : "#292d34"
+        border.width: root.compact ? (root.barMode ? 1 : 0) : 1
+        border.color: root.barMode
+            ? (root.hovered ? "#40ffffff" : "#24ffffff")
+            : (root.hovered ? "#414650" : "#292d34")
 
         Behavior on color { ColorAnimation { duration: 130 } }
     }

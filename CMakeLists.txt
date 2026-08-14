@@ -58,6 +58,25 @@ target_link_libraries(application_search_tests PRIVATE
 
 add_test(NAME application_search COMMAND application_search_tests)
 
+add_executable(wallpaper_contrast_tests
+    tests/wallpaper_contrast_tests.cpp
+    backend/WallpaperContrastBackend.h
+    backend/WallpaperContrastBackend.cpp
+)
+
+target_include_directories(wallpaper_contrast_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/backend
+)
+
+target_link_libraries(wallpaper_contrast_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Test
+)
+
+add_test(NAME wallpaper_contrast COMMAND wallpaper_contrast_tests)
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/lyricsmpris_core_tests.cpp")
     add_executable(lyricsmpris_tests
         tests/lyricsmpris_core_tests.cpp
@@ -171,6 +190,8 @@ qt_add_qml_module(IslandBackend
         backend/CompositorBackend.cpp
         backend/StyleTokensBackend.h
         backend/StyleTokensBackend.cpp
+        backend/WallpaperContrastBackend.h
+        backend/WallpaperContrastBackend.cpp
         backend/UserConfigBackend.h
         backend/UserConfigBackend.cpp
         backend/BluetoothPairingAgent.h

@@ -56,6 +56,10 @@ PanelWindow {
         && shellRootController.screenRecordingActive !== undefined
         ? !!shellRootController.screenRecordingActive
         : false
+    readonly property bool gameModeEnabled: shellRootController
+        && shellRootController.gameModeEnabled !== undefined
+        ? !!shellRootController.gameModeEnabled
+        : false
     property bool autoHideVisible: false
     property bool autoHidePointerInside: false
     property bool autoHideForcedHidden: false
@@ -127,9 +131,9 @@ PanelWindow {
             height: bluetoothConnectivityDetailShell.visible ? Math.ceil(bluetoothConnectivityDetailShell.height) : 0
         }
     }
-    readonly property real capsuleWindowHeight: Math.ceil(
-        userConfig.islandTopMargin + mainCapsule.targetHeight + 12
-    )
+    readonly property real capsuleWindowHeight: root.gameModeBarActive
+        ? Math.ceil(userConfig.islandHeight)
+        : Math.ceil(userConfig.islandTopMargin + mainCapsule.targetHeight + 12)
     readonly property real connectivityDetailWindowHeight: root.anyConnectivityDetailMounted
         ? Math.ceil(userConfig.islandTopMargin + root.connectivityDetailHeight + 12)
         : 0
@@ -205,16 +209,22 @@ PanelWindow {
         const action = Number(userConfig.hoverExpandAction);
         return isNaN(action) ? 0 : Math.max(0, Math.min(2, Math.round(action)));
     }
-    readonly property real baseExclusiveZone: userConfig.islandExclusiveZone
+    readonly property real baseExclusiveZone: root.gameModeEnabled
+        ? userConfig.islandHeight
+        : userConfig.islandExclusiveZone
     readonly property bool hoverExpandEnabled: configuredHoverExpandAction > 0
     readonly property bool topGestureInputActive: !root.overviewVisible && islandContainer.canShowSideSwipe
     readonly property bool autoHideRuntimeEnabled: !shellRootController
         || shellRootController.islandAutoHideRuntimeEnabled === undefined
         || !!shellRootController.islandAutoHideRuntimeEnabled
-    readonly property bool autoHideEnabled: userConfig.islandAutoHideEnabled && autoHideRuntimeEnabled
+    readonly property bool autoHideEnabled: !root.gameModeEnabled
+        && userConfig.islandAutoHideEnabled && autoHideRuntimeEnabled
     readonly property bool autoHideRestingState: islandContainer.islandState === "normal"
         || islandContainer.islandState === "custom"
         || islandContainer.islandState === "lyrics"
+    readonly property bool gameModeBarActive: root.gameModeEnabled
+        && root.autoHideRestingState
+        && !root.overviewVisible
     readonly property bool autoHideCanHideNow: autoHideEnabled
         && autoHideRestingState
         && !root.overviewVisible
@@ -278,8 +288,24 @@ PanelWindow {
     readonly property int connectivityDetailAnimationDuration: 360
     readonly property string overviewWallpaperSource: overviewWallpaperCache.effectiveSource
     property string wallpaperPickerActiveWallpaper: userConfig.wallpaperPath
+    property int wallpaperContrastRevision: 0
+    readonly property string adaptiveWallpaperPath: root.wallpaperPickerActiveWallpaper !== ""
+        ? root.wallpaperPickerActiveWallpaper
+        : userConfig.wallpaperPath
+    readonly property color rightBarForeground: {
+        root.wallpaperContrastRevision;
+        return WallpaperContrast.foregroundForRegion(
+            root.adaptiveWallpaperPath,
+            root.screen ? root.screen.width : root.width,
+            root.screen ? root.screen.height : Math.max(root.height, 1),
+            Math.max(0, systemTrayDock.x - 8),
+            0,
+            Math.max(1, root.width - systemTrayDock.x + 8),
+            userConfig.islandHeight);
+    }
 
     Behavior on autoHideProgress {
+        enabled: !root.gameModeEnabled
         SpringAnimation {
             spring: 7.5
             damping: root.autoHideTargetVisible ? 0.44 : 0.82
@@ -289,6 +315,7 @@ PanelWindow {
     }
 
     Behavior on exclusiveZoneProgress {
+        enabled: !root.gameModeEnabled
         NumberAnimation {
             duration: root.exclusiveZoneTargetActive ? 120 : 300
             easing.type: root.exclusiveZoneTargetActive ? Easing.OutCubic : Easing.InCubic
@@ -528,12 +555,19 @@ PanelWindow {
         overviewWallpaperCache.prewarm();
     }
 
+    function refreshWallpaperContrast(filePath) {
+        if (filePath !== undefined && filePath !== null && String(filePath) !== "")
+            wallpaperPickerActiveWallpaper = String(filePath);
+        wallpaperContrastRevision++;
+    }
+
     function handleWallpaperApplySucceeded(filePath) {
-        wallpaperPickerActiveWallpaper = filePath;
         if (shellRootController && shellRootController.refreshOverviewWallpaperCaches)
             shellRootController.refreshOverviewWallpaperCaches(filePath);
-        else
+        else {
+            refreshWallpaperContrast(filePath);
             prewarmWallpaperCache();
+        }
     }
 
     function showNotification(notification, showPopup) {
@@ -1887,8 +1921,8 @@ PanelWindow {
             z: 30
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.topMargin: Math.max(3, userConfig.islandTopMargin)
-            anchors.rightMargin: 12
+            anchors.topMargin: root.gameModeBarActive ? 0 : Math.max(3, userConfig.islandTopMargin)
+            anchors.rightMargin: root.gameModeBarActive ? 6 : 12
             width: implicitWidth
             height: implicitHeight
             showCondition: root.trayDockEnabled
@@ -1896,6 +1930,10 @@ PanelWindow {
             parentWindow: root
             hardwareMonitor: islandContainer.hardwareMonitorModel
             railHeight: userConfig.islandHeight
+            // The dock always sits directly over the wallpaper. Only individual
+            // application tray icons retain contrast backplates.
+            barMode: true
+            adaptiveForeground: root.rightBarForeground
             textFontFamily: root.textFontFamily
             iconFontFamily: root.iconFontFamily
         }
@@ -1910,6 +1948,7 @@ PanelWindow {
                 : StyleTokens.clearBlack
             property real displayedWidth: baseTargetWidth
             readonly property real baseTargetWidth: {
+                if (root.gameModeBarActive) return root.width;
                 if (root.overviewVisible) return root.overviewCapsuleWidth;
                 if (sideTransientRestoreTimer.running) {
                     if (islandContainer.restingState === "lyrics"
@@ -1967,6 +2006,7 @@ PanelWindow {
                 }
             }
             readonly property real targetHeight: {
+                if (root.gameModeBarActive) return userConfig.islandHeight;
                 if (root.overviewVisible) return root.overviewCapsuleHeight;
 
                 switch (islandContainer.islandState) {
@@ -2002,6 +2042,7 @@ PanelWindow {
                 }
             }
             readonly property real targetRadius: {
+                if (root.gameModeBarActive) return 0;
                 if (root.overviewVisible) return root.overviewCapsuleRadius;
 
                 switch (islandContainer.islandState) {
@@ -2039,12 +2080,16 @@ PanelWindow {
             readonly property real sideSwipePreviewWidth: mainCapsule.sideSwipeWidthForProgress(
                 islandContainer.swipeTransitionProgress
             )
-            color: root.overviewContentVisible
-                ? root.overviewCapsuleColor
-                : Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0)
-            y: userConfig.islandTopMargin
+            color: root.gameModeBarActive
+                ? StyleTokens.transparent
+                : (root.overviewContentVisible
+                    ? root.overviewCapsuleColor
+                    : Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0))
+            y: root.gameModeBarActive ? 0 : userConfig.islandTopMargin
                 - (1 - root.autoHideProgress) * (targetHeight + userConfig.islandTopMargin + 8)
-            x: parent ? parent.width * userConfig.islandPositionX / 100 - width / 2 : 0
+            x: root.gameModeBarActive
+                ? 0
+                : (parent ? parent.width * userConfig.islandPositionX / 100 - width / 2 : 0)
             clip: true
             width: displayedWidth
             height: targetHeight
@@ -2059,7 +2104,7 @@ PanelWindow {
             }
 
             Behavior on displayedWidth {
-                enabled: !capsuleMouseArea.sideSwipeInteractive
+                enabled: !root.gameModeEnabled && !capsuleMouseArea.sideSwipeInteractive
 
                 SpringAnimation {
                     spring: 7.5
@@ -2069,7 +2114,8 @@ PanelWindow {
                 }
             }
             Behavior on height {
-                enabled: !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
+                enabled: !root.gameModeEnabled
+                    && !(controlCenterLoader.item && controlCenterLoader.item.batteryDrawerMoving)
 
                 SpringAnimation {
                     spring: 8
@@ -2079,6 +2125,7 @@ PanelWindow {
                 }
             }
             Behavior on radius {
+                enabled: !root.gameModeEnabled
                 SpringAnimation {
                     spring: 9
                     damping: 0.47
@@ -2091,6 +2138,29 @@ PanelWindow {
             Behavior on outlineColor { ColorAnimation { duration: 260; easing.type: Easing.InOutQuad } }
             border.width: outlineWidth
             border.color: outlineColor
+
+            Rectangle {
+                z: 99
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.gameModeBarActive
+                width: Math.min(userConfig.islandWidth, parent.width)
+                height: parent.height
+                radius: height / 2
+                color: Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0)
+            }
+
+            Text {
+                z: 100
+                anchors.centerIn: parent
+                visible: root.gameModeBarActive
+                text: timeObj.currentTime
+                color: StyleTokens.textPrimaryBright
+                font.family: root.timeFontFamily
+                font.pixelSize: root.titleFontSize
+                font.weight: Font.Bold
+                wrapMode: Text.NoWrap
+            }
 
             Rectangle {
                 anchors.fill: parent
@@ -2371,7 +2441,7 @@ PanelWindow {
                 anchors.fill: parent
                 active: islandContainer.customSwipeVisible
                 asynchronous: false
-                visible: active
+                visible: active && !root.gameModeBarActive
 
                 onLoaded: islandContainer.syncCustomCapsuleWidth()
 
@@ -2402,7 +2472,7 @@ PanelWindow {
                 anchors.fill: parent
                 active: islandContainer.lyricsSwipeVisible
                 asynchronous: false
-                visible: active
+                visible: active && !root.gameModeBarActive
 
                 onLoaded: islandContainer.syncLyricsCapsuleWidth()
 
