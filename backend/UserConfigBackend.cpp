@@ -306,6 +306,11 @@ int UserConfigBackend::islandBackgroundOpacity() const
     return m_islandBackgroundOpacity;
 }
 
+bool UserConfigBackend::islandBlurEnabled() const
+{
+    return m_islandBlurEnabled;
+}
+
 int UserConfigBackend::islandHeight() const
 {
     return m_islandHeight;
@@ -475,6 +480,8 @@ void UserConfigBackend::loadConfig()
     updateField(this, m_islandAutoHideDelayMs, jsonBoundedInt(configObject, QLatin1String("islandAutoHideDelayMs"), 1000, 100, 10000), &UserConfigBackend::islandAutoHideDelayMsChanged);
     updateField(this, m_islandWidth, jsonInt(configObject, QLatin1String("islandWidth"), 140), &UserConfigBackend::islandWidthChanged);
     updateField(this, m_islandBackgroundOpacity, jsonBoundedInt(configObject, QLatin1String("islandBackgroundOpacity"), 60, 0, 100), &UserConfigBackend::islandBackgroundOpacityChanged);
+    const bool legacyHyprglassEnabled = jsonBool(configObject, QLatin1String("islandHyprglassEnabled"), false);
+    updateField(this, m_islandBlurEnabled, jsonBool(configObject, QLatin1String("islandBlurEnabled"), legacyHyprglassEnabled), &UserConfigBackend::islandBlurEnabledChanged);
     updateField(this, m_islandHeight, jsonInt(configObject, QLatin1String("islandHeight"), 38), &UserConfigBackend::islandHeightChanged);
     updateField(this, m_islandExclusiveZone, jsonBoundedInt(configObject, QLatin1String("islandExclusiveZone"), 45, 0, 1000), &UserConfigBackend::islandExclusiveZoneChanged);
     updateField(this, m_islandTopMargin, jsonBoundedInt(configObject, QLatin1String("islandTopMargin"), 4, 0, 1000), &UserConfigBackend::islandTopMarginChanged);

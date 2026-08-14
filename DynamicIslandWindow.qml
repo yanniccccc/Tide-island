@@ -66,6 +66,10 @@ PanelWindow {
     property string autoHideRevealSource: "none"
 
     readonly property var userConfig: UserConfig
+    readonly property real configuredIslandBackgroundOpacity: userConfig.islandBackgroundOpacity / 100.0
+    readonly property real effectiveIslandBackgroundOpacity: userConfig.islandBlurEnabled
+        ? Math.max(0.08, root.configuredIslandBackgroundOpacity)
+        : root.configuredIslandBackgroundOpacity
 
     Loader {
         id: hyprlandIntegrationLoader
@@ -159,6 +163,9 @@ PanelWindow {
         || islandContainer.applicationLauncherLayerVisible
         ? WlrLayer.Overlay
         : WlrLayer.Top
+    WlrLayershell.namespace: userConfig.islandBlurEnabled
+        ? "tide-island-blur"
+        : "quickshell"
     WlrLayershell.keyboardFocus: {
         if (islandContainer.wallpaperPickerLayerVisible
                 || islandContainer.applicationLauncherLayerVisible)
@@ -2079,7 +2086,7 @@ PanelWindow {
                 ? StyleTokens.transparent
                 : (root.overviewContentVisible
                     ? root.overviewCapsuleColor
-                    : Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0))
+                    : Qt.rgba(0, 0, 0, root.effectiveIslandBackgroundOpacity))
             y: root.gameModeBarActive ? 0 : userConfig.islandTopMargin
                 - (1 - root.autoHideProgress) * (targetHeight + userConfig.islandTopMargin + 8)
             x: root.gameModeBarActive
@@ -2142,7 +2149,7 @@ PanelWindow {
                 width: Math.min(userConfig.islandWidth, parent.width)
                 height: parent.height
                 radius: height / 2
-                color: Qt.rgba(0, 0, 0, userConfig.islandBackgroundOpacity / 100.0)
+                color: Qt.rgba(0, 0, 0, root.effectiveIslandBackgroundOpacity)
             }
 
             Text {

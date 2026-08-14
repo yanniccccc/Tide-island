@@ -5,6 +5,23 @@ import QtQuick
 PagePanel {
     id: root
 
+    property bool blurEnabled: boolValue(
+        "islandBlurEnabled",
+        boolValue("islandHyprglassEnabled", false)
+    )
+    readonly property bool blurAvailable: backend.currentCompositor() === "hyprland"
+
+    function boolValue(key, fallback) {
+        const value = ConfigStore.value(key, fallback)
+        return value === true || value === "true"
+    }
+
+    function setBlurEnabled(enabled) {
+        blurEnabled = enabled
+        ConfigStore.setValue("islandBlurEnabled", enabled)
+        ConfigStore.save()
+    }
+
     function intValue(key, fallback) {
         return String(ConfigStore.value(key, fallback))
     }
@@ -126,7 +143,7 @@ PagePanel {
 
                     ConfigRow {
                         title: "Background Transparency"
-                        description: "Opacity of the island background (0 = fully transparent, 100 = solid)"
+                        description: "Background darkness (higher values make blur darker)"
                         keyName: "islandBackgroundOpacity"
                         fallbackText: "60"
                         numeric: true
@@ -134,6 +151,10 @@ PagePanel {
                         maximumValue: 100
                         width: parent.width
                     }
+
+                    SplitLine { width: parent.width }
+
+                    BlurRow { width: parent.width }
 
                     SplitLine { width: parent.width }
 
@@ -373,6 +394,93 @@ PagePanel {
                     }
                 }
             }
+        }
+    }
+
+    component BlurRow: Item {
+        id: row
+
+        height: 49
+        enabled: root.blurAvailable
+        opacity: enabled ? 1 : 0.45
+
+        Text {
+            id: rowTitle
+            text: "Background Blur"
+            font.family: Theme.textFontFamily
+            font.pixelSize: 18
+            color: Theme.textColor
+            anchors.top: parent.top
+            anchors.left: parent.left
+        }
+
+        Text {
+            text: root.blurAvailable
+                ? "Use Hyprland's native blur behind the island"
+                : "Available only in a Hyprland session"
+            font.family: Theme.textFontFamily
+            font.pixelSize: 14
+            anchors.top: rowTitle.bottom
+            anchors.topMargin: 5
+            anchors.left: rowTitle.left
+            width: Math.max(80, parent.width - glassSwitch.width - 28)
+            elide: Text.ElideRight
+            color: Theme.subtleTextColor
+        }
+
+        StyledSwitch {
+            id: glassSwitch
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.blurEnabled
+
+            onToggled: function(checked) {
+                root.setBlurEnabled(checked)
+            }
+        }
+    }
+
+    component StyledSwitch: Item {
+        id: control
+
+        signal toggled(bool checked)
+        property bool checked: false
+
+        width: 48
+        height: 26
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 40
+            height: 24
+            radius: 12
+            color: control.checked ? Theme.accentColor : Theme.componentBgColor
+            border.width: 1
+            border.color: control.checked ? Theme.accentColor : Theme.inputBorderColor
+
+            Behavior on color {
+                ColorAnimation { duration: 180; easing.type: Easing.InOutQuad }
+            }
+        }
+
+        Rectangle {
+            width: 18
+            height: 18
+            radius: 9
+            x: control.checked ? 22 : 6
+            y: 3
+            color: Theme.cardBgColor
+
+            Behavior on x {
+                NumberAnimation { duration: 180; easing.type: Easing.InOutQuad }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: control.toggled(!control.checked)
         }
     }
 }
