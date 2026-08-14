@@ -290,9 +290,15 @@ PanelWindow {
     readonly property string overviewWallpaperSource: overviewWallpaperCache.effectiveSource
     property string wallpaperPickerActiveWallpaper: userConfig.wallpaperPath
     property int wallpaperContrastRevision: 0
+    readonly property string startupWallpaperPath: {
+        const wallpapers = root.shellRootController
+            ? root.shellRootController.startupWallpapersByOutput : null;
+        const path = wallpapers ? wallpapers[root.screenOutputName] : "";
+        return path !== undefined ? String(path) : "";
+    }
     readonly property string adaptiveWallpaperPath: root.wallpaperPickerActiveWallpaper !== ""
         ? root.wallpaperPickerActiveWallpaper
-        : userConfig.wallpaperPath
+        : (root.startupWallpaperPath !== "" ? root.startupWallpaperPath : userConfig.wallpaperPath)
     readonly property color rightBarForeground: {
         root.wallpaperContrastRevision;
         return WallpaperContrast.foregroundForRegion(
@@ -1930,6 +1936,8 @@ PanelWindow {
             adaptiveForeground: root.rightBarForeground
             textFontFamily: root.textFontFamily
             iconFontFamily: root.iconFontFamily
+
+            Component.onCompleted: Qt.callLater(() => root.refreshWallpaperContrast())
         }
 
         Rectangle {

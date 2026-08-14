@@ -19,12 +19,50 @@ Scope {
     property var notificationObjects: ({})
     property var pinnedTrayIds: []
     property var pinnedHardwareStatIds: []
+    property var startupWallpapersByOutput: ({})
 
     readonly property var hardwareStatIds: [
         "cpu_usage", "cpu_temp", "ram_usage", "gpu_usage", "gpu_temp"
     ]
 
     readonly property var userConfig: UserConfig
+
+    function applyStartupWallpaperQuery(queryText) {
+        try {
+            const namespaces = JSON.parse(String(queryText || ""));
+            const wallpapers = {};
+            const namespaceNames = Object.keys(namespaces);
+            for (let namespaceIndex = 0; namespaceIndex < namespaceNames.length; ++namespaceIndex) {
+                const outputs = namespaces[namespaceNames[namespaceIndex]];
+                if (!Array.isArray(outputs))
+                    continue;
+                for (let outputIndex = 0; outputIndex < outputs.length; ++outputIndex) {
+                    const output = outputs[outputIndex];
+                    if (!output || !output.name || !output.displaying || !output.displaying.image)
+                        continue;
+                    wallpapers[String(output.name)] = String(output.displaying.image);
+                }
+            }
+            startupWallpapersByOutput = wallpapers;
+        } catch (error) {
+        }
+    }
+
+    Process {
+        id: startupWallpaperQuery
+        command: ["awww", "query", "--json"]
+        running: true
+
+        stdout: StdioCollector {
+            id: startupWallpaperQueryOutput
+            waitForEnd: true
+        }
+
+        onExited: function(exitCode) {
+            if (exitCode === 0)
+                shellRoot.applyStartupWallpaperQuery(startupWallpaperQueryOutput.text);
+        }
+    }
 
     function refreshGameModeState() {
         if (CompositorBackend.compositor !== "hyprland" || gameModeQuery.running)
